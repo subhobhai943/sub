@@ -66,6 +66,9 @@ jobs:
           DEB_BASENAME=$(basename "$DEB_FILE")
           cp "$DEB_FILE" /tmp/
 
+          # Save index.html before switching branches
+          cp .github/apt-repo-index.html /tmp/apt-repo-index.html
+
           git fetch origin apt-repo 2>/dev/null && git checkout apt-repo || (git checkout --orphan apt-repo && git rm -rf . 2>/dev/null || true)
 
           mkdir -p dists/stable/main/binary-amd64 pool/main
@@ -81,7 +84,7 @@ jobs:
           gpg --batch --yes --passphrase '' --pinentry-mode loopback --clearsign -o dists/stable/InRelease dists/stable/Release
           gpg --batch --yes --passphrase '' --pinentry-mode loopback -abs -o dists/stable/Release.gpg dists/stable/Release
 
-          cp .github/apt-repo-index.html index.html
+          cp /tmp/apt-repo-index.html index.html
 
           git add .
           git commit -m "APT repo: ${{ github.ref_name || 'manual' }}"
