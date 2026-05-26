@@ -21,7 +21,7 @@ jobs:
       - name: Install toolchains
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y gcc rustc nasm m4 default-jdk devscripts debhelper dpkg-dev apt-utils gnupg
+          sudo apt-get install -y build-essential gcc rustc nasm m4 default-jdk devscripts debhelper dpkg-dev apt-utils gnupg
 
       - name: Generate GPG key
         id: gpg
@@ -29,7 +29,7 @@ jobs:
           gpgconf --kill gpg-agent 2>/dev/null || true
           mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
           echo 'allow-loopback-pinentry' > ~/.gnupg/gpg-agent.conf
-          echo -e 'pinentry-mode loopback\nbatch\nno-tty' > ~/.gnupg/gpg.conf
+          printf 'pinentry-mode loopback\nbatch\nno-tty\n' > ~/.gnupg/gpg.conf
           gpgconf --launch gpg-agent 2>/dev/null || true
           sleep 1
           gpg --batch --passphrase '' --quick-generate-key 'Subhadip Sarkar <sarkarsubhadip604@gmail.com>' rsa4096 default never
@@ -49,6 +49,7 @@ jobs:
       - name: Build .deb package
         run: |
           chmod +x sub
+          chmod +x debian/rules
           dpkg-buildpackage -us -uc -b
           ls -lh ../sub_*.deb
 
@@ -85,34 +86,32 @@ jobs:
           gpg --batch --yes --passphrase '' --pinentry-mode loopback -abs -o dists/stable/Release.gpg dists/stable/Release
 
           python3 - <<'PYEOF'
-          content = '''<!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <title>sub APT Repository</title>
-            <style>
-              body { font-family: monospace; background:#0d1117; color:#c9d1d9; padding:2rem; }
-              h1   { color:#58a6ff; }
-              pre  { background:#161b22; padding:1rem; border-radius:6px; overflow-x:auto; }
-              a    { color:#58a6ff; }
-            </style>
-          </head>
-          <body>
-            <h1>sub &mdash; APT Repository</h1>
-            <p>Polyglot hacking &amp; utility CLI by <a href="https://github.com/subhobhai943">Subhadip Sarkar</a></p>
-            <h2>Install</h2>
-            <pre>
-          curl -fsSL https://subhobhai943.github.io/sub/sub.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/sub.gpg
-
-          echo "deb [signed-by=/etc/apt/keyrings/sub.gpg] https://subhobhai943.github.io/sub stable main" | sudo tee /etc/apt/sources.list.d/sub.list
-
-          sudo apt update && sudo apt install sub
-            </pre>
-            <p><a href="https://github.com/subhobhai943/sub">GitHub &rarr;</a></p>
-          </body>
-          </html>'''
-          open('index.html', 'w').write(content)
-          PYEOF
+content = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>sub APT Repository</title>
+  <style>
+    body { font-family: monospace; background:#0d1117; color:#c9d1d9; padding:2rem; }
+    h1   { color:#58a6ff; }
+    pre  { background:#161b22; padding:1rem; border-radius:6px; overflow-x:auto; }
+    a    { color:#58a6ff; }
+  </style>
+</head>
+<body>
+  <h1>sub &mdash; APT Repository</h1>
+  <p>Polyglot hacking &amp; utility CLI by <a href="https://github.com/subhobhai943">Subhadip Sarkar</a></p>
+  <h2>Install</h2>
+  <pre>
+curl -fsSL https://subhobhai943.github.io/sub/sub.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/sub.gpg
+echo "deb [signed-by=/etc/apt/keyrings/sub.gpg] https://subhobhai943.github.io/sub stable main" | sudo tee /etc/apt/sources.list.d/sub.list
+sudo apt update && sudo apt install sub
+  </pre>
+  <p><a href="https://github.com/subhobhai943/sub">GitHub &rarr;</a></p>
+</body>
+</html>'''
+open('index.html', 'w').write(content)
+PYEOF
 
           git add .
           git commit -m "APT repo: ${{ github.ref_name || 'manual' }}"
