@@ -1,0 +1,56 @@
+name: Build & Release SUB
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-deb:
+    name: Build .deb Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 debhelper dh-python
+
+      - name: Build .deb
+        run: |
+          dpkg-buildpackage -us -uc -b
+          mkdir -p dist
+          mv ../*.deb dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sub-deb
+          path: dist/*.deb
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.deb
+          body: |
+            ## SUB ${{ github.ref_name }}
+            
+            ### Install
+            ```bash
+            # One-line install:
+            curl -sL https://raw.githubusercontent.com/subhobhai943/sub/main/install.sh | sudo bash
+            
+            # Or download the .deb below and install with:
+            sudo dpkg -i sub_*.deb
+            sudo apt-get install -f
+            ```
+            
+            ### What's new
+            See CHANGELOG for details.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
