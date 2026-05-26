@@ -1,1 +1,4 @@
 src/sub.py usr/bin/sub
+src/core/sub-scan usr/bin/sub-scan
+src/core/sub-recon usr/bin/sub-recon
+src/core/sub-sysinfo usr/bin/sub-sysinfo
