@@ -19,3 +19,5 @@ override_dh_auto_install:
 	[ -f bin/sub-whoami.txt ] && install -D -m 644 bin/sub-whoami.txt debian/sub/usr/local/lib/sub/bin/sub-whoami.txt || true
 	[ -f bin/Sub.class    ] && install -D -m 644 bin/Sub.class    debian/sub/usr/local/lib/sub/bin/Sub.class    || true
 	[ -f bin/OsintTools.class ] && install -D -m 644 bin/OsintTools.class debian/sub/usr/local/lib/sub/bin/OsintTools.class || true
+
+override_dh_usrlocal:
