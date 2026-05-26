@@ -5,7 +5,7 @@
 <p align="center">
   <b>A powerful Linux CLI tool — Hacking utilities + Developer profile + System recon</b><br/>
   <a href="https://github.com/subhobhai943">@subhobhai943</a> • 
-  <a href="https://sub-portofolio.netlify.app">Portfolio</a>
+  <a href="https://sub-portfolio.netlify.app">Portfolio</a>
 </p>
 
 <p align="center">
