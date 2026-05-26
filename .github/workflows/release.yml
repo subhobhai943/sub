@@ -27,48 +27,41 @@ jobs:
             gcc rustc nasm m4 \
             default-jdk \
             devscripts debhelper dpkg-dev \
-            apt-utils gnupg gpg-agent
+            apt-utils gnupg
 
-      # ── 3. Generate GPG key (fixed: kill agent, use loopback pinentry)
+      # ── 3. Generate GPG key (using --quick-gen-key, modern & CI-safe)
       - name: Generate GPG key
         id: gpg
         run: |
-          # Kill any existing gpg-agent and set loopback pinentry
-          gpgconf --kill gpg-agent || true
+          # Configure gpg for non-interactive use
           mkdir -p ~/.gnupg
           chmod 700 ~/.gnupg
-          echo 'allow-loopback-pinentry' >> ~/.gnupg/gpg-agent.conf
-          echo 'pinentry-mode loopback'  >> ~/.gnupg/gpg.conf
-          echo 'no-tty'                  >> ~/.gnupg/gpg.conf
+          echo 'allow-loopback-pinentry' > ~/.gnupg/gpg-agent.conf
+          echo 'pinentry-mode loopback'  > ~/.gnupg/gpg.conf
+          echo 'batch'                  >> ~/.gnupg/gpg.conf
+          echo 'no-tty'                 >> ~/.gnupg/gpg.conf
 
-          # Restart agent with new config
-          gpg-agent --daemon --allow-loopback-pinentry || true
+          # Kill and restart agent with new config
+          gpgconf --kill gpg-agent 2>/dev/null || true
+          gpgconf --launch gpg-agent 2>/dev/null || true
 
-          # Generate key via parameter file (avoids heredoc ioctl issues)
-          cat > /tmp/keygen.params <<PARAMS
-          Key-Type: RSA
-          Key-Length: 4096
-          Subkey-Type: RSA
-          Subkey-Length: 4096
-          Name-Real: Subhobhai Sarkar
-          Name-Email: subhobhai943@users.noreply.github.com
-          Expire-Date: 0
-          %no-passphrase
-          %commit
-          PARAMS
+          # --quick-gen-key: modern way, no passphrase, no agent dialog
+          gpg --batch --passphrase '' \
+            --quick-gen-key \
+            'Subhobhai Sarkar <subhobhai943@users.noreply.github.com>' \
+            rsa4096 sign 0
 
-          gpg --batch --gen-key /tmp/keygen.params
-
-          # Get key ID
+          # Get short key ID
           KEY_ID=$(gpg --list-keys --keyid-format SHORT \
-            subhobhai943@users.noreply.github.com \
+            'subhobhai943@users.noreply.github.com' \
             | grep '^pub' | awk '{print $2}' | cut -d'/' -f2)
           echo "KEY_ID=$KEY_ID" >> $GITHUB_OUTPUT
-          echo "Key generated: $KEY_ID"
+          echo "Generated GPG key: $KEY_ID"
 
           # Export public key
-          gpg --armor --export subhobhai943@users.noreply.github.com \
-            > /tmp/sub.gpg.key
+          gpg --armor --export \
+            'subhobhai943@users.noreply.github.com' > /tmp/sub.gpg.key
+          echo "Public key exported."
 
       # ── 4. Build native backends
       - name: Build native backends
@@ -103,12 +96,13 @@ jobs:
           git config user.name  "Subhobhai"
 
           DEB_FILE=$(basename $(ls ../sub_*.deb | head -1))
-          cp ../sub_*.deb "/tmp/$DEB_FILE"
+          cp "../sub_*.deb" "/tmp/$DEB_FILE" 2>/dev/null || \
+            cp $(ls ../sub_*.deb | head -1) "/tmp/$DEB_FILE"
 
-          # Switch to apt-repo branch
+          # Switch to apt-repo branch (create orphan if first time)
           git fetch origin apt-repo 2>/dev/null && \
             git checkout apt-repo || \
-            (git checkout --orphan apt-repo && git rm -rf .)
+            (git checkout --orphan apt-repo && git rm -rf . 2>/dev/null || true)
 
           mkdir -p dists/stable/main/binary-amd64 pool/main
 
@@ -120,24 +114,23 @@ jobs:
             > dists/stable/main/binary-amd64/Packages
           gzip -kf dists/stable/main/binary-amd64/Packages
 
-          # Release file
-          cat > /tmp/release_header <<RELEASE
-          Origin: sub
-          Label: sub
-          Suite: stable
-          Codename: stable
-          Architectures: all amd64
-          Components: main
-          Description: sub - Polyglot hacking and utility CLI
-          RELEASE
-          cat /tmp/release_header > dists/stable/Release
+          # Release file header
+          {
+            echo "Origin: sub"
+            echo "Label: sub"
+            echo "Suite: stable"
+            echo "Codename: stable"
+            echo "Architectures: all amd64"
+            echo "Components: main"
+            echo "Description: sub - Polyglot hacking and utility CLI"
+          } > dists/stable/Release
           apt-ftparchive release dists/stable >> dists/stable/Release
 
-          # Sign (no passphrase)
-          gpg --batch --yes --pinentry-mode loopback \
+          # Sign (no passphrase, loopback)
+          gpg --batch --yes --passphrase '' --pinentry-mode loopback \
             --clearsign -o dists/stable/InRelease dists/stable/Release
 
-          gpg --batch --yes --pinentry-mode loopback \
+          gpg --batch --yes --passphrase '' --pinentry-mode loopback \
             -abs -o dists/stable/Release.gpg dists/stable/Release
 
           # index.html
