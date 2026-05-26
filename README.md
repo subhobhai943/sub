@@ -1,19 +1,21 @@
 <h1 align="center">
-  <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=30&pause=1000&color=00FFFF&center=true&vCenter=true&width=500&lines=SUB+CLI+Tool;Python+%C2%B7+C+%C2%B7+Rust+%C2%B7+Assembly;By+Subhobhai943" alt="SUB" />
+  <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=28&pause=1000&color=00FFFF&center=true&vCenter=true&width=600&lines=SUB+CLI+Tool;Python+%C2%B7+C+%C2%B7+Rust+%C2%B7+Assembly+%C2%B7+Kotlin+%C2%B7+Java;By+Subhobhai943" alt="SUB" />
 </h1>
 
 <p align="center">
-  <b>A multi-language Linux CLI tool — Hacking utilities + Developer profile + System recon</b><br/>
+  <b>6-language Linux CLI tool — Hacking · OSINT · Recon · Network · Crypto</b><br/>
   <a href="https://github.com/subhobhai943">@subhobhai943</a> • 
   <a href="https://sub-portofolio.netlify.app">Portfolio</a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-cyan?style=flat-square" />
-  <img src="https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python" />
+  <img src="https://img.shields.io/badge/version-3.0.0-cyan?style=flat-square" />
+  <img src="https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python" />
   <img src="https://img.shields.io/badge/C-GCC-orange?style=flat-square&logo=c" />
   <img src="https://img.shields.io/badge/Rust-stable-red?style=flat-square&logo=rust" />
   <img src="https://img.shields.io/badge/Assembly-x86--64-purple?style=flat-square" />
+  <img src="https://img.shields.io/badge/Kotlin-2.0-blueviolet?style=flat-square&logo=kotlin" />
+  <img src="https://img.shields.io/badge/Java-17+-brown?style=flat-square&logo=openjdk" />
   <img src="https://img.shields.io/badge/platform-Linux-lightgrey?style=flat-square&logo=linux" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
 </p>
@@ -23,17 +25,19 @@
 ## 🧠 Architecture
 
 ```
-sub (Python — dispatcher)
-  ├── sub-scan     (C)          ── Fast TCP scanner + banner grabbing
-  ├── sub-recon    (Rust)       ── Subdomain enum, hash ID, crypto tools
-  └── sub-sysinfo  (Assembly)   ── Raw syscall system info
+sub  (Python — dispatcher)
+ ├── sub-scan       (C)          ─ Fast TCP scanner + banner grabbing
+ ├── sub-recon      (Rust)       ─ Subdomain enum, hash ID, cipher, crypto
+ ├── sub-sysinfo    (Assembly)   ─ Raw x86-64 syscall system info
+ ├── sub-net.jar    (Kotlin)     ─ Threaded scanner, GeoIP, traceroute, rdns
+ └── sub-osint.jar  (Java)       ─ OSINT: username, email headers, URL expand
 ```
 
 ---
 
 ## 📦 Installation
 
-### One-line Install
+### One-line
 ```bash
 curl -sL https://raw.githubusercontent.com/subhobhai943/sub/main/install.sh | sudo bash
 ```
@@ -43,123 +47,118 @@ curl -sL https://raw.githubusercontent.com/subhobhai943/sub/main/install.sh | su
 git clone https://github.com/subhobhai943/sub.git
 cd sub
 
-# Install build deps
-sudo apt install gcc rustc nasm binutils python3
+# Install deps
+sudo apt install gcc rustc nasm binutils python3 default-jdk
+# Install Kotlin compiler
+curl -sL https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip -o kotlin.zip
+unzip kotlin.zip -d /opt/kotlin && export PATH=$PATH:/opt/kotlin/kotlinc/bin
 
-# Build everything
-make build
-
-# Install to /usr/local/bin
-sudo make install
-```
-
-### Install .deb
-```bash
-sudo dpkg -i sub_2.0.0-1_amd64.deb
-sudo apt-get install -f
+# Build all 5 engines + install
+make build && sudo make install
 ```
 
 ---
 
-## 🚀 Commands
+## 🚀 All Commands
 
-### 🔵 Python (Built-in)
+### 🔵 Python
 | Command | Description |
 |---|---|
-| `sub whoami` | Developer info (Subhobhai) |
-| `sub sysinfo` | System info (uses ASM binary if available) |
+| `sub whoami` | Developer info |
+| `sub sysinfo` | System info (ASM or Python) |
 | `sub ports <host>` | Quick 16-port checker |
 | `sub whois <domain>` | WHOIS lookup |
 | `sub dns <domain>` | DNS resolution |
-| `sub ping <host>` | Ping a host |
-| `sub headers <url>` | HTTP response headers |
-| `sub banner` | ASCII art banner |
-| `sub version` | Version info |
+| `sub ping <host>` | Ping |
+| `sub headers <url>` | HTTP headers |
 
-### 🔴 C-powered
+### 🔴 C
 | Command | Description |
 |---|---|
-| `sub scan <target>` | Fast TCP port scan + banner grabbing |
-| `sub scan <target> --start 1 --end 65535` | Full port range scan |
+| `sub scan <target>` | Fast TCP scan + banner grab |
+| `sub scan <t> --start 1 --end 65535` | Full range |
 
-### 🟠 Rust-powered
+### 🟠 Rust
 | Command | Description |
 |---|---|
-| `sub hashid <hash>` | Identify hash type (MD5/SHA1/SHA256...) |
-| `sub pwcheck <password>` | Password strength analysis |
-| `sub subdomain <domain>` | Subdomain enumeration |
-| `sub caesar <text> <shift>` | Caesar cipher encrypt/decrypt |
+| `sub hashid <hash>` | Hash type identifier |
+| `sub pwcheck <password>` | Password strength |
+| `sub subdomain <domain>` | Subdomain probe |
+| `sub caesar <text> <n>` | Caesar cipher |
 | `sub b64 <text>` | Base64 encode |
 
-### 🟣 Assembly-powered
+### 🟣 Assembly
 | Command | Description |
 |---|---|
-| `sub rawsys` | Raw system info via x86-64 syscalls |
+| `sub rawsys` | Raw system info via syscall |
+
+### 🟡 Kotlin
+| Command | Description |
+|---|---|
+| `sub netscan <host>` | Threaded port scan (100 threads) |
+| `sub geoip <ip>` | IP geolocation (ip-api.com) |
+| `sub rdns <ip>` | Reverse DNS lookup |
+| `sub grab <host> <port>` | TCP banner grabber |
+| `sub traceroute <host>` | Traceroute |
+| `sub ifaces` | Network interfaces |
+
+### 🟢 Java
+| Command | Description |
+|---|---|
+| `sub username <name>` | Check username on 12 platforms |
+| `sub emailhdr <file>` | Parse + analyse email headers |
+| `sub expand <url>` | Follow + expand short URLs |
+| `sub httpstat <url>` | HTTP status + server fingerprint |
 
 ---
 
 ## 💡 Examples
 
 ```bash
-# Hacking
+# Scanning
 sub scan 192.168.1.1
-sub scan scanme.nmap.org --start 1 --end 65535
-sub subdomain github.com
+sub netscan 10.0.0.1 --start 1 --end 9999 --threads 200
+sub grab scanme.nmap.org 22
+
+# OSINT
+sub username subhobhai943
+sub geoip 8.8.8.8
+sub rdns 1.1.1.1
+sub expand https://bit.ly/example
+sub httpstat https://github.com
+
+# Crypto & Analysis
 sub hashid 5f4dcc3b5aa765d61d8327deb882cf99
 sub pwcheck "MyP@ssw0rd!"
+sub caesar "Attack at dawn" 13
+sub b64 "subhobhai943"
 
-# Recon
-sub whois google.com
-sub dns github.com
-sub headers https://example.com
-
-# Crypto
-sub caesar "Hello World" 13
-sub b64 "Subhobhai943"
-
-# Info
-sub whoami
+# Raw
 sub rawsys
-sub sysinfo
+sub whoami
 ```
 
 ---
 
-## 📁 Project Structure
-
+## 📁 Structure
 ```
 sub/
 ├── src/
 │   ├── sub.py              ← Python dispatcher
 │   └── core/
-│       ├── scanner.c       ← C: fast TCP scanner
-│       ├── recon.rs        ← Rust: recon & crypto
-│       └── sysinfo.asm     ← Assembly: raw syscall sysinfo
-├── debian/                 ← .deb packaging
-├── .github/workflows/      ← CI: auto-build all + release
-├── Makefile                ← Build everything with one command
-├── install.sh              ← One-line installer
+│       ├── scanner.c       ← C
+│       ├── recon.rs        ← Rust
+│       ├── sysinfo.asm     ← Assembly
+│       ├── NetUtils.kt     ← Kotlin
+│       └── OsintTools.java ← Java
+├── debian/
+├── .github/workflows/
+├── Makefile
+├── install.sh
 └── README.md
 ```
 
 ---
 
-## 🛠️ Build Individual Components
-
-```bash
-# C only
-gcc -O2 -Wall -o src/core/sub-scan src/core/scanner.c
-
-# Rust only
-rustc -O -o src/core/sub-recon src/core/recon.rs
-
-# Assembly only
-nasm -f elf64 src/core/sysinfo.asm -o src/core/sysinfo.o
-ld -o src/core/sub-sysinfo src/core/sysinfo.o
-```
-
----
-
 ## 📄 License
-
 MIT — © 2026 [Subhobhai Sarkar](https://github.com/subhobhai943)

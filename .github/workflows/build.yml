@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build All Binaries + .deb
+    name: Build All (C + Rust + ASM + Kotlin + Java)
     runs-on: ubuntu-latest
 
     steps:
@@ -19,13 +19,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            gcc \
-            rustc \
-            nasm \
-            binutils \
+            gcc rustc nasm binutils \
             python3 \
-            debhelper \
-            dh-python
+            default-jdk \
+            debhelper dh-python
+
+      - name: Install Kotlin
+        run: |
+          curl -sL https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip -o kotlin.zip
+          unzip -q kotlin.zip -d /opt/kotlin
+          echo "/opt/kotlin/kotlinc/bin" >> $GITHUB_PATH
 
       - name: Build C scanner
         run: gcc -O2 -Wall -o src/core/sub-scan src/core/scanner.c
@@ -39,23 +42,35 @@ jobs:
           ld -o src/core/sub-sysinfo src/core/sysinfo.o
           rm src/core/sysinfo.o
 
-      - name: Build .deb package
+      - name: Build Kotlin JAR
+        run: kotlinc src/core/NetUtils.kt -include-runtime -d src/core/sub-net.jar
+
+      - name: Build Java JAR
+        run: |
+          mkdir -p src/core/java_classes
+          javac -d src/core/java_classes src/core/OsintTools.java
+          jar cfe src/core/sub-osint.jar OsintTools -C src/core/java_classes .
+          rm -rf src/core/java_classes
+
+      - name: Build .deb
         run: |
           dpkg-buildpackage -us -uc -b
           mkdir -p dist
-          mv ../*.deb dist/
+          mv ../*.deb dist/ 2>/dev/null || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sub-package
+          name: sub-all
           path: |
             dist/*.deb
             src/core/sub-scan
             src/core/sub-recon
             src/core/sub-sysinfo
+            src/core/sub-net.jar
+            src/core/sub-osint.jar
 
-      - name: Create GitHub Release
+      - name: GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
@@ -64,33 +79,34 @@ jobs:
             src/core/sub-scan
             src/core/sub-recon
             src/core/sub-sysinfo
+            src/core/sub-net.jar
+            src/core/sub-osint.jar
           body: |
             ## SUB ${{ github.ref_name }}
+            **6-language CLI toolkit: Python · C · Rust · Assembly · Kotlin · Java**
 
-            Multi-language CLI tool: **Python · C · Rust · Assembly**
-
-            ### Quick Install
+            ### Install
             ```bash
             curl -sL https://raw.githubusercontent.com/subhobhai943/sub/main/install.sh | sudo bash
             ```
 
-            ### Or install the .deb
-            ```bash
-            sudo dpkg -i sub_*.deb
-            sudo apt-get install -f
-            ```
-
-            ### Commands
             | Command | Engine | Description |
             |---|---|---|
-            | `sub scan <target>` | **C** | Fast TCP scan + banner grab |
-            | `sub hashid <hash>` | **Rust** | Hash type identifier |
-            | `sub pwcheck <pw>` | **Rust** | Password strength |
-            | `sub subdomain <domain>` | **Rust** | Subdomain enumeration |
-            | `sub caesar <text> <n>` | **Rust** | Caesar cipher |
-            | `sub b64 <text>` | **Rust** | Base64 encode |
-            | `sub rawsys` | **ASM** | Raw syscall sysinfo |
-            | `sub whoami` | **Python** | Developer info |
-            | `sub sysinfo` | **ASM/Python** | System info |
+            | `sub scan <target>` | C | Fast TCP + banner |
+            | `sub netscan <host>` | Kotlin | Threaded scan |
+            | `sub geoip <ip>` | Kotlin | IP geolocation |
+            | `sub rdns <ip>` | Kotlin | Reverse DNS |
+            | `sub grab <host> <port>` | Kotlin | Banner grab |
+            | `sub traceroute <host>` | Kotlin | Traceroute |
+            | `sub ifaces` | Kotlin | Network interfaces |
+            | `sub username <name>` | Java | Username search |
+            | `sub emailhdr <file>` | Java | Email header analysis |
+            | `sub expand <url>` | Java | URL expander |
+            | `sub httpstat <url>` | Java | HTTP fingerprint |
+            | `sub hashid <hash>` | Rust | Hash identifier |
+            | `sub pwcheck <pw>` | Rust | Password strength |
+            | `sub subdomain <domain>` | Rust | Subdomain enum |
+            | `sub caesar <text> <n>` | Rust | Caesar cipher |
+            | `sub rawsys` | Assembly | Raw syscall info |
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
