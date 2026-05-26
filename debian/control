@@ -1,15 +1,23 @@
 Source: sub
 Section: utils
 Priority: optional
-Maintainer: Subhobhai Sarkar <subhobhai943@github.com>
+Maintainer: Subhobhai Sarkar <subhobhai943@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13), python3
-Standards-Version: 4.6.0
+Standards-Version: 4.6.2
 Homepage: https://github.com/subhobhai943/sub
+Vcs-Git: https://github.com/subhobhai943/sub.git
+Vcs-Browser: https://github.com/subhobhai943/sub
 
 Package: sub
 Architecture: all
-Depends: python3, nmap, whois
-Description: SUB — Hacking & Info CLI Tool by Subhobhai
- The sub tool is a mixed-purpose CLI providing network reconnaissance,
- port scanning, WHOIS lookups, system information, and author info.
- Built by Subhobhai Sarkar (subhobhai943).
+Depends: python3 (>= 3.8), ${misc:Depends}
+Recommends: nmap, whois, dnsutils, traceroute
+Description: A powerful multi-purpose hacking and utility CLI tool
+ sub is a command-line toolkit for network recon, hacking utilities,
+ crypto helpers, encoding, password generation, and personal info
+ display. Created by Subhobhai Sarkar (subhobhai943).
+ .
+ Features: nmap scan wrapper, port scanner, subdomain brute-force,
+ banner grabber, DNS lookup, WHOIS, IP geolocation, ping, traceroute,
+ HTTP headers, hash (MD5/SHA*), hash identifier, encode/decode
+ (base64/hex/url), password/token generator, weather, GitHub repos.

@@ -1,20 +1,32 @@
-.PHONY: install build-kotlin build-java clean
+.PHONY: install uninstall build clean
 
 install:
-	cp src/python/sub.py /usr/local/bin/sub
+	@echo "Installing sub..."
+	cp src/sub.py /usr/local/bin/sub
 	chmod +x /usr/local/bin/sub
-	@echo "[+] sub installed at /usr/local/bin/sub"
+	@echo "Done. Run: sub help"
 
-build-kotlin:
-	kotlinc src/kotlin/Sub.kt -include-runtime -d sub-kotlin.jar
-	@echo "[+] Kotlin JAR: sub-kotlin.jar"
+uninstall:
+	@echo "Uninstalling sub..."
+	rm -f /usr/local/bin/sub
+	@echo "sub removed."
 
-build-java:
-	mkdir -p out
-	javac src/java/Sub.java -d out/
-	cd out && jar cfe ../sub-java.jar Sub .
-	@echo "[+] Java JAR: sub-java.jar"
+build:
+	@echo "Building .deb package..."
+	@which fpm || (echo "Install fpm first: gem install fpm" && exit 1)
+	fpm -s dir -t deb \
+		-n sub \
+		-v 1.0.0 \
+		--description "sub - hacking & utility CLI by subhobhai943" \
+		--maintainer "Subhobhai Sarkar <subhobhai943@users.noreply.github.com>" \
+		--url "https://github.com/subhobhai943/sub" \
+		--depends python3 \
+		--category utils \
+		--deb-recommends nmap \
+		--deb-recommends whois \
+		--deb-recommends dnsutils \
+		src/sub.py=/usr/local/bin/sub
+	@echo "Build complete: sub_1.0.0_all.deb"
 
 clean:
-	rm -f sub-kotlin.jar sub-java.jar *.deb
-	rm -rf out/
+	rm -f *.deb

@@ -1,0 +1,57 @@
+name: Build & Release .deb
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install fpm
+        run: |
+          sudo apt-get install -y ruby ruby-dev build-essential
+          sudo gem install fpm
+
+      - name: Build .deb
+        run: |
+          fpm -s dir -t deb \
+            -n sub \
+            -v "${GITHUB_REF_NAME#v}" \
+            --description "sub - hacking & utility CLI by subhobhai943" \
+            --maintainer "Subhobhai Sarkar <subhobhai943@users.noreply.github.com>" \
+            --url "https://github.com/subhobhai943/sub" \
+            --depends python3 \
+            --deb-recommends nmap \
+            --deb-recommends whois \
+            --deb-recommends dnsutils \
+            --category utils \
+            --license MIT \
+            src/sub.py=/usr/local/bin/sub
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.deb"
+          body: |
+            ## sub ${{ github.ref_name }}
+
+            ### Install via .deb
+            ```bash
+            wget https://github.com/subhobhai943/sub/releases/download/${{ github.ref_name }}/sub_${{ github.ref_name }}_amd64.deb
+            sudo dpkg -i sub_*.deb
+            ```
+
+            ### One-line install
+            ```bash
+            curl -sL https://raw.githubusercontent.com/subhobhai943/sub/main/install.sh | sudo bash
+            ```
+
+            ### Commands
+            `whoami` `sysinfo` `myip` `scan` `ports` `subdomain` `banner-grab` `dns` `whois` `ipinfo` `ping` `traceroute` `headers` `netstat` `hash` `hashid` `encode` `generate` `weather` `myrepos`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

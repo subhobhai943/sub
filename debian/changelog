@@ -1,7 +1,8 @@
-sub (1.0.0) unstable; urgency=low
+sub (1.0.0-1) unstable; urgency=low
 
   * Initial release.
-  * Python, Kotlin, and Java CLI implementations.
-  * Commands: banner, whoami, info, scan, ports, whois, update.
+  * Commands: whoami, sysinfo, myip, scan, ports, subdomain, banner-grab,
+    dns, whois, ipinfo, ping, traceroute, headers, netstat, hash, hashid,
+    encode, generate, weather, myrepos, version.
 
- -- Subhobhai Sarkar <subhobhai943@github.com>  Tue, 26 May 2026 20:00:00 +0530
+ -- Subhobhai Sarkar <subhobhai943@users.noreply.github.com>  Tue, 26 May 2026 22:00:00 +0530

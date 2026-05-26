@@ -1,3 +1,6 @@
 #!/usr/bin/make -f
 %:
 	dh $@
+
+override_dh_auto_install:
+	install -D -m 755 src/sub.py debian/sub/usr/local/bin/sub
