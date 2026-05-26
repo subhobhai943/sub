@@ -1,1 +1,2 @@
-src/sub.py usr/local/bin/sub
+sub usr/local/bin
+src/sub.py usr/local/lib/sub

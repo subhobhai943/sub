@@ -2,7 +2,7 @@ Source: sub
 Section: utils
 Priority: optional
 Maintainer: Subhobhai Sarkar <subhobhai943@users.noreply.github.com>
-Build-Depends: debhelper-compat (= 13), python3
+Build-Depends: debhelper-compat (= 13)
 Standards-Version: 4.6.2
 Homepage: https://github.com/subhobhai943/sub
 Vcs-Git: https://github.com/subhobhai943/sub.git
@@ -11,13 +11,18 @@ Vcs-Browser: https://github.com/subhobhai943/sub
 Package: sub
 Architecture: all
 Depends: python3 (>= 3.8), ${misc:Depends}
-Recommends: nmap, whois, dnsutils, traceroute
-Description: A powerful multi-purpose hacking and utility CLI tool
- sub is a command-line toolkit for network recon, hacking utilities,
- crypto helpers, encoding, password generation, and personal info
- display. Created by Subhobhai Sarkar (subhobhai943).
+Recommends: gcc, rustc, default-jdk, nmap, whois, dnsutils, traceroute, nasm, m4
+Suggests: kotlinc, nvcc
+Description: Polyglot hacking & utility CLI tool
+ sub is a multi-backend command-line toolkit written in Python, C, Rust,
+ Kotlin, Java, Haxe, CUDA C++, Assembly (x86_64/aarch64), and M4.
  .
- Features: nmap scan wrapper, port scanner, subdomain brute-force,
- banner grabber, DNS lookup, WHOIS, IP geolocation, ping, traceroute,
- HTTP headers, hash (MD5/SHA*), hash identifier, encode/decode
- (base64/hex/url), password/token generator, weather, GitHub repos.
+ A single 'sub' bash dispatcher routes each command to the fastest
+ available native backend, with graceful fallback to Python.
+ .
+ Commands: whoami, sysinfo, info, myip, scan, ports, subdomain,
+ banner-grab, geoip, rdns, ifaces, traceroute, dns, whois, ipinfo,
+ ping, headers, netstat, hashid, pwcheck, caesar, b64, hash, encode,
+ generate, weather, myrepos, gpuinfo, m4, version.
+ .
+ GitHub: https://github.com/subhobhai943/sub

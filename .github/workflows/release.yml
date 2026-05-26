@@ -1,57 +1,135 @@
-name: Build & Release .deb
+name: Build & Publish APT Package
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:   # allow manual trigger from GitHub UI
 
 jobs:
-  build-deb:
+  build-and-publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to upload release assets
+      pages: write
+      id-token: write
+
     steps:
+      # ── 1. Checkout source
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Install fpm
+      # ── 2. Install build toolchains
+      - name: Install toolchains
         run: |
-          sudo apt-get install -y ruby ruby-dev build-essential
-          sudo gem install fpm
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            gcc rustc nasm m4 \
+            default-jdk \
+            devscripts debhelper dpkg-dev \
+            apt-utils gnupg
 
-      - name: Build .deb
+      # ── 3. Build all native backends
+      - name: Build native backends
+        run: make build
+
+      # ── 4. Fix sub script path for installed layout
+      #       (installed sub reads sub.py from /usr/local/lib/sub/)
+      - name: Patch dispatcher path for package
         run: |
-          fpm -s dir -t deb \
-            -n sub \
-            -v "${GITHUB_REF_NAME#v}" \
-            --description "sub - hacking & utility CLI by subhobhai943" \
-            --maintainer "Subhobhai Sarkar <subhobhai943@users.noreply.github.com>" \
-            --url "https://github.com/subhobhai943/sub" \
-            --depends python3 \
-            --deb-recommends nmap \
-            --deb-recommends whois \
-            --deb-recommends dnsutils \
-            --category utils \
-            --license MIT \
-            src/sub.py=/usr/local/bin/sub
+          sed -i 's|${ROOT}/src/sub.py|/usr/local/lib/sub/sub.py|g' sub
+          sed -i 's|${SUB_BIN:-${ROOT}/bin}|${SUB_BIN:-/usr/local/lib/sub/bin}|g' sub
 
-      - name: Create GitHub Release
+      # ── 5. Build the .deb with dpkg-buildpackage
+      - name: Build .deb package
+        run: |
+          chmod +x sub
+          dpkg-buildpackage -us -uc -b
+          ls -lh ../sub_*.deb
+
+      # ── 6. Upload .deb as a release asset
+      - name: Upload .deb to GitHub Release
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: "*.deb"
-          body: |
-            ## sub ${{ github.ref_name }}
+          files: ../sub_*.deb
 
-            ### Install via .deb
-            ```bash
-            wget https://github.com/subhobhai943/sub/releases/download/${{ github.ref_name }}/sub_${{ github.ref_name }}_amd64.deb
-            sudo dpkg -i sub_*.deb
-            ```
-
-            ### One-line install
-            ```bash
-            curl -sL https://raw.githubusercontent.com/subhobhai943/sub/main/install.sh | sudo bash
-            ```
-
-            ### Commands
-            `whoami` `sysinfo` `myip` `scan` `ports` `subdomain` `banner-grab` `dns` `whois` `ipinfo` `ping` `traceroute` `headers` `netstat` `hash` `hashid` `encode` `generate` `weather` `myrepos`
+      # ── 7. Import GPG key for signing the APT repo
+      - name: Import GPG key
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE:  ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 \
+            --pinentry-mode loopback --list-keys
+
+      # ── 8. Build the APT repo metadata on apt-repo branch
+      - name: Update APT repo on apt-repo branch
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID:     ${{ secrets.GPG_KEY_ID }}
+        run: |
+          git config user.email "subhobhai943@users.noreply.github.com"
+          git config user.name  "Subhobhai"
+
+          # Switch to apt-repo branch (create if it doesn't exist)
+          git fetch origin apt-repo 2>/dev/null || true
+          git checkout apt-repo 2>/dev/null || git checkout --orphan apt-repo && git rm -rf . 2>/dev/null || true
+
+          # Set up directory structure
+          mkdir -p dists/stable/main/binary-amd64
+          mkdir -p pool/main
+
+          # Copy the .deb into pool
+          cp ../sub_*.deb pool/main/
+
+          # Generate Packages index
+          dpkg-scanpackages pool/main /dev/null > dists/stable/main/binary-amd64/Packages
+          gzip -kf dists/stable/main/binary-amd64/Packages
+
+          # Generate Release file
+          cat > dists/stable/Release <<EOF
+          Origin: sub
+          Label: sub
+          Suite: stable
+          Codename: stable
+          Architectures: all amd64
+          Components: main
+          Description: sub - Polyglot hacking & utility CLI
+          EOF
+          apt-ftparchive release dists/stable >> dists/stable/Release
+
+          # Sign the Release file
+          echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 \
+            --pinentry-mode loopback \
+            --clearsign -o dists/stable/InRelease dists/stable/Release
+
+          echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 \
+            --pinentry-mode loopback \
+            -abs -o dists/stable/Release.gpg dists/stable/Release
+
+          # Export public key for users
+          gpg --armor --export "$GPG_KEY_ID" > sub.gpg.key
+
+          # Generate a simple index.html
+          cat > index.html <<'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>sub APT Repository</title></head>
+          <body>
+          <h1>sub APT Repository</h1>
+          <p>Install sub:</p>
+          <pre>
+          curl -fsSL https://subhobhai943.github.io/sub/sub.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/sub.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/sub.gpg] https://subhobhai943.github.io/sub stable main" | sudo tee /etc/apt/sources.list.d/sub.list
+          sudo apt update && sudo apt install sub
+          </pre>
+          </body>
+          </html>
+          EOF
+
+          git add .
+          git commit -m "APT repo: ${{ github.ref_name }}" || echo "Nothing to commit"
+          git push origin apt-repo
