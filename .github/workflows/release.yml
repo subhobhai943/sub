@@ -29,39 +29,38 @@ jobs:
             devscripts debhelper dpkg-dev \
             apt-utils gnupg
 
-      # ── 3. Generate GPG key (using --quick-gen-key, modern & CI-safe)
+      # ── 3. Generate GPG key
       - name: Generate GPG key
         id: gpg
         run: |
-          # Configure gpg for non-interactive use
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-          echo 'allow-loopback-pinentry' > ~/.gnupg/gpg-agent.conf
-          echo 'pinentry-mode loopback'  > ~/.gnupg/gpg.conf
-          echo 'batch'                  >> ~/.gnupg/gpg.conf
-          echo 'no-tty'                 >> ~/.gnupg/gpg.conf
-
-          # Kill and restart agent with new config
+          # Stop any running agent
           gpgconf --kill gpg-agent 2>/dev/null || true
+
+          # Minimal gpg config for CI
+          mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
+          printf 'allow-loopback-pinentry\n' > ~/.gnupg/gpg-agent.conf
+          printf 'pinentry-mode loopback\nbatch\nno-tty\n' > ~/.gnupg/gpg.conf
+
+          # Restart agent
           gpgconf --launch gpg-agent 2>/dev/null || true
+          sleep 1
 
-          # --quick-gen-key: modern way, no passphrase, no agent dialog
+          # Generate key — most reliable CI method
           gpg --batch --passphrase '' \
-            --quick-gen-key \
-            'Subhobhai Sarkar <subhobhai943@users.noreply.github.com>' \
-            rsa4096 sign 0
+              --quick-generate-key \
+              'Subhadip Sarkar <sarkarsubhadip604@gmail.com>' \
+              rsa4096 default never
 
-          # Get short key ID
+          # Get key fingerprint
           KEY_ID=$(gpg --list-keys --keyid-format SHORT \
-            'subhobhai943@users.noreply.github.com' \
-            | grep '^pub' | awk '{print $2}' | cut -d'/' -f2)
+              sarkarsubhadip604@gmail.com \
+              | grep '^pub' | awk '{print $2}' | cut -d'/' -f2)
           echo "KEY_ID=$KEY_ID" >> $GITHUB_OUTPUT
-          echo "Generated GPG key: $KEY_ID"
+          echo "Key generated: $KEY_ID"
 
-          # Export public key
-          gpg --armor --export \
-            'subhobhai943@users.noreply.github.com' > /tmp/sub.gpg.key
-          echo "Public key exported."
+          # Export public key for users
+          gpg --armor --export sarkarsubhadip604@gmail.com > /tmp/sub.gpg.key
+          cat /tmp/sub.gpg.key | head -3
 
       # ── 4. Build native backends
       - name: Build native backends
@@ -92,12 +91,12 @@ jobs:
         env:
           KEY_ID: ${{ steps.gpg.outputs.KEY_ID }}
         run: |
-          git config user.email "subhobhai943@users.noreply.github.com"
-          git config user.name  "Subhobhai"
+          git config user.email "sarkarsubhadip604@gmail.com"
+          git config user.name  "Subhadip Sarkar"
 
-          DEB_FILE=$(basename $(ls ../sub_*.deb | head -1))
-          cp "../sub_*.deb" "/tmp/$DEB_FILE" 2>/dev/null || \
-            cp $(ls ../sub_*.deb | head -1) "/tmp/$DEB_FILE"
+          DEB_FILE=$(ls ../sub_*.deb | head -1)
+          cp "$DEB_FILE" /tmp/
+          DEB_BASENAME=$(basename "$DEB_FILE")
 
           # Switch to apt-repo branch (create orphan if first time)
           git fetch origin apt-repo 2>/dev/null && \
@@ -106,7 +105,7 @@ jobs:
 
           mkdir -p dists/stable/main/binary-amd64 pool/main
 
-          cp "/tmp/$DEB_FILE" pool/main/
+          cp "/tmp/$DEB_BASENAME" pool/main/
           cp /tmp/sub.gpg.key sub.gpg.key
 
           # Packages index
@@ -114,7 +113,7 @@ jobs:
             > dists/stable/main/binary-amd64/Packages
           gzip -kf dists/stable/main/binary-amd64/Packages
 
-          # Release file header
+          # Release file
           {
             echo "Origin: sub"
             echo "Label: sub"
@@ -126,7 +125,7 @@ jobs:
           } > dists/stable/Release
           apt-ftparchive release dists/stable >> dists/stable/Release
 
-          # Sign (no passphrase, loopback)
+          # Sign
           gpg --batch --yes --passphrase '' --pinentry-mode loopback \
             --clearsign -o dists/stable/InRelease dists/stable/Release
 
@@ -135,38 +134,38 @@ jobs:
 
           # index.html
           cat > index.html <<'HTML'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <title>sub APT Repository</title>
-            <style>
-              body { font-family: monospace; background:#0d1117; color:#c9d1d9; padding:2rem; }
-              h1   { color:#58a6ff; }
-              pre  { background:#161b22; padding:1rem; border-radius:6px; overflow-x:auto; }
-              a    { color:#58a6ff; }
-            </style>
-          </head>
-          <body>
-            <h1>sub &mdash; APT Repository</h1>
-            <p>Polyglot hacking &amp; utility CLI by
-              <a href="https://github.com/subhobhai943">Subhobhai Sarkar</a>
-            </p>
-            <h2>Install</h2>
-            <pre>
-          curl -fsSL https://subhobhai943.github.io/sub/sub.gpg.key \
-            | sudo gpg --dearmor -o /etc/apt/keyrings/sub.gpg
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>sub APT Repository</title>
+  <style>
+    body { font-family: monospace; background:#0d1117; color:#c9d1d9; padding:2rem; }
+    h1   { color:#58a6ff; }
+    pre  { background:#161b22; padding:1rem; border-radius:6px; overflow-x:auto; }
+    a    { color:#58a6ff; }
+  </style>
+</head>
+<body>
+  <h1>sub &mdash; APT Repository</h1>
+  <p>Polyglot hacking &amp; utility CLI by
+    <a href="https://github.com/subhobhai943">Subhadip Sarkar</a>
+  </p>
+  <h2>Install</h2>
+  <pre>
+curl -fsSL https://subhobhai943.github.io/sub/sub.gpg.key \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/sub.gpg
 
-          echo "deb [signed-by=/etc/apt/keyrings/sub.gpg] https://subhobhai943.github.io/sub stable main" \
-            | sudo tee /etc/apt/sources.list.d/sub.list
+echo "deb [signed-by=/etc/apt/keyrings/sub.gpg] https://subhobhai943.github.io/sub stable main" \
+  | sudo tee /etc/apt/sources.list.d/sub.list
 
-          sudo apt update
-          sudo apt install sub
-            </pre>
-            <p><a href="https://github.com/subhobhai943/sub">GitHub &rarr;</a></p>
-          </body>
-          </html>
-          HTML
+sudo apt update
+sudo apt install sub
+  </pre>
+  <p><a href="https://github.com/subhobhai943/sub">GitHub &rarr;</a></p>
+</body>
+</html>
+HTML
 
           git add .
           git commit -m "APT repo: ${{ github.ref_name || 'manual' }}"
