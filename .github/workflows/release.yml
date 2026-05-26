@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # ── 2. Install toolchains + build tools
+      # ── 2. Install toolchains
       - name: Install toolchains
         run: |
           sudo apt-get update -q
@@ -27,14 +27,25 @@ jobs:
             gcc rustc nasm m4 \
             default-jdk \
             devscripts debhelper dpkg-dev \
-            apt-utils gnupg gpg
+            apt-utils gnupg gpg-agent
 
-      # ── 3. Generate a GPG key on the runner (no local GPG needed)
+      # ── 3. Generate GPG key (fixed: kill agent, use loopback pinentry)
       - name: Generate GPG key
         id: gpg
         run: |
-          # Generate key non-interactively
-          gpg --batch --gen-key <<EOF
+          # Kill any existing gpg-agent and set loopback pinentry
+          gpgconf --kill gpg-agent || true
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo 'allow-loopback-pinentry' >> ~/.gnupg/gpg-agent.conf
+          echo 'pinentry-mode loopback'  >> ~/.gnupg/gpg.conf
+          echo 'no-tty'                  >> ~/.gnupg/gpg.conf
+
+          # Restart agent with new config
+          gpg-agent --daemon --allow-loopback-pinentry || true
+
+          # Generate key via parameter file (avoids heredoc ioctl issues)
+          cat > /tmp/keygen.params <<PARAMS
           Key-Type: RSA
           Key-Length: 4096
           Subkey-Type: RSA
@@ -44,19 +55,22 @@ jobs:
           Expire-Date: 0
           %no-passphrase
           %commit
-          EOF
+          PARAMS
 
-          # Get the key fingerprint/ID
+          gpg --batch --gen-key /tmp/keygen.params
+
+          # Get key ID
           KEY_ID=$(gpg --list-keys --keyid-format SHORT \
             subhobhai943@users.noreply.github.com \
             | grep '^pub' | awk '{print $2}' | cut -d'/' -f2)
           echo "KEY_ID=$KEY_ID" >> $GITHUB_OUTPUT
-          echo "Generated key ID: $KEY_ID"
+          echo "Key generated: $KEY_ID"
 
-          # Export the PUBLIC key so it's available later
-          gpg --armor --export subhobhai943@users.noreply.github.com > /tmp/sub.gpg.key
+          # Export public key
+          gpg --armor --export subhobhai943@users.noreply.github.com \
+            > /tmp/sub.gpg.key
 
-      # ── 4. Build all native backends
+      # ── 4. Build native backends
       - name: Build native backends
         run: make build
 
@@ -73,7 +87,7 @@ jobs:
           dpkg-buildpackage -us -uc -b
           ls -lh ../sub_*.deb
 
-      # ── 7. Upload .deb to GitHub Release assets
+      # ── 7. Upload .deb to GitHub Release
       - name: Upload .deb to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
@@ -81,41 +95,33 @@ jobs:
           files: ../sub_*.deb
 
       # ── 8. Build & push APT repo to apt-repo branch
-      - name: Publish APT repo to apt-repo branch
+      - name: Publish APT repo
         env:
           KEY_ID: ${{ steps.gpg.outputs.KEY_ID }}
         run: |
           git config user.email "subhobhai943@users.noreply.github.com"
           git config user.name  "Subhobhai"
 
-          # Save the .deb path before switching branches
-          DEB_PATH=$(ls ../sub_*.deb | head -1)
-          DEB_FILE=$(basename "$DEB_PATH")
+          DEB_FILE=$(basename $(ls ../sub_*.deb | head -1))
+          cp ../sub_*.deb "/tmp/$DEB_FILE"
 
-          # Stash the public key and deb somewhere safe
-          cp /tmp/sub.gpg.key /tmp/sub.gpg.key.bak
-          cp "$DEB_PATH" "/tmp/$DEB_FILE"
-
-          # Switch to apt-repo branch (create orphan if first time)
+          # Switch to apt-repo branch
           git fetch origin apt-repo 2>/dev/null && \
             git checkout apt-repo || \
             (git checkout --orphan apt-repo && git rm -rf .)
 
-          # Set up APT repo directory structure
-          mkdir -p dists/stable/main/binary-amd64
-          mkdir -p pool/main
+          mkdir -p dists/stable/main/binary-amd64 pool/main
 
-          # Copy files in
           cp "/tmp/$DEB_FILE" pool/main/
-          cp /tmp/sub.gpg.key.bak sub.gpg.key
+          cp /tmp/sub.gpg.key sub.gpg.key
 
-          # Generate Packages index
+          # Packages index
           dpkg-scanpackages pool/main /dev/null \
             > dists/stable/main/binary-amd64/Packages
           gzip -kf dists/stable/main/binary-amd64/Packages
 
-          # Generate Release file
-          cat > dists/stable/Release <<RELEASE
+          # Release file
+          cat > /tmp/release_header <<RELEASE
           Origin: sub
           Label: sub
           Suite: stable
@@ -124,16 +130,17 @@ jobs:
           Components: main
           Description: sub - Polyglot hacking and utility CLI
           RELEASE
+          cat /tmp/release_header > dists/stable/Release
           apt-ftparchive release dists/stable >> dists/stable/Release
 
-          # Sign with no passphrase (key has none)
-          gpg --batch --yes --no-passphrase \
+          # Sign (no passphrase)
+          gpg --batch --yes --pinentry-mode loopback \
             --clearsign -o dists/stable/InRelease dists/stable/Release
 
-          gpg --batch --yes --no-passphrase \
+          gpg --batch --yes --pinentry-mode loopback \
             -abs -o dists/stable/Release.gpg dists/stable/Release
 
-          # Pretty index.html
+          # index.html
           cat > index.html <<'HTML'
           <!DOCTYPE html>
           <html lang="en">
@@ -141,10 +148,10 @@ jobs:
             <meta charset="UTF-8">
             <title>sub APT Repository</title>
             <style>
-              body { font-family: monospace; background: #0d1117; color: #c9d1d9; padding: 2rem; }
-              h1   { color: #58a6ff; }
-              pre  { background: #161b22; padding: 1rem; border-radius: 6px; overflow-x: auto; }
-              a    { color: #58a6ff; }
+              body { font-family: monospace; background:#0d1117; color:#c9d1d9; padding:2rem; }
+              h1   { color:#58a6ff; }
+              pre  { background:#161b22; padding:1rem; border-radius:6px; overflow-x:auto; }
+              a    { color:#58a6ff; }
             </style>
           </head>
           <body>
