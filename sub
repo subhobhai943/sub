@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+# sub — Unified polyglot dispatcher
+# Routes commands to the best native backend, falls back to Python.
+# Author: Subhobhai (subhobhai943)
+
+set -euo pipefail
+
+# ── Locate script directory so we can find ./bin/ even if called via PATH
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_DIR="${SCRIPT_DIR}/bin"
+
+# ── Allow override via env: SUB_BIN=/my/path sub ...
+BIN_DIR="${SUB_BIN:-$BIN_DIR}"
+
+# ── ANSI helpers
+R="\033[91m"; G="\033[92m"; Y="\033[93m"
+C="\033[96m"; W="\033[97m"; RST="\033[0m"
+
+cmd_exists() { command -v "$1" &>/dev/null; }
+bin_exists()  { [ -x "${BIN_DIR}/$1" ]; }
+jar_exists()  { [ -f "${BIN_DIR}/$1" ]; }
+
+# ─────────────────────────────────────────────────────────────
+# FAST NATIVE DISPATCH TABLE
+# Commands handled by native engines (C / Rust / Kotlin / Java)
+# ─────────────────────────────────────────────────────────────
+
+COMMAND="${1:-help}"
+shift || true   # remaining args are $@
+
+case "${COMMAND}" in
+
+  # ── Port scan → prefer C sub-scan (non-blocking, banner-grab)
+  #               fallback: Kotlin sub-net (threaded)
+  #               final:    Python sub.py
+  ports|scan)
+    if bin_exists sub-scan; then
+      echo -e "${C}[sub-scan/C]${RST} Fast native port scanner"
+      "${BIN_DIR}/sub-scan" "$@"
+    elif jar_exists sub-net.jar && cmd_exists java; then
+      echo -e "${C}[sub-net/Kotlin]${RST} Threaded Kotlin scanner"
+      TARGET="${1:-}"; START="${2:-1}"; END="${3:-1024}"
+      java -jar "${BIN_DIR}/sub-net.jar" scan "$TARGET" "$START" "$END"
+    else
+      python3 "${SCRIPT_DIR}/src/sub.py" "${COMMAND}" "$@"
+    fi
+    ;;
+
+  # ── Banner grab → prefer Kotlin (multi-line reader)
+  #                  fallback: Python
+  banner-grab|banner)
+    if jar_exists sub-net.jar && cmd_exists java; then
+      echo -e "${C}[sub-net/Kotlin]${RST} Banner grab"
+      java -jar "${BIN_DIR}/sub-net.jar" banner "$@"
+    else
+      python3 "${SCRIPT_DIR}/src/sub.py" banner-grab "$@"
+    fi
+    ;;
+
+  # ── Traceroute → Kotlin wrapper (cleaner output)
+  traceroute)
+    if jar_exists sub-net.jar && cmd_exists java; then
+      echo -e "${C}[sub-net/Kotlin]${RST} Traceroute"
+      java -jar "${BIN_DIR}/sub-net.jar" traceroute "$@"
+    else
+      python3 "${SCRIPT_DIR}/src/sub.py" traceroute "$@"
+    fi
+    ;;
+
+  # ── GeoIP / Reverse DNS → Kotlin (ip-api.com, no key)
+  geoip)
+    if jar_exists sub-net.jar && cmd_exists java; then
+      echo -e "${C}[sub-net/Kotlin]${RST} GeoIP"
+      java -jar "${BIN_DIR}/sub-net.jar" geoip "$@"
+    else
+      python3 "${SCRIPT_DIR}/src/sub.py" ipinfo "$@"
+    fi
+    ;;
+
+  rdns)
+    if jar_exists sub-net.jar && cmd_exists java; then
+      java -jar "${BIN_DIR}/sub-net.jar" rdns "$@"
+    else
+      echo -e "${R}[!] rdns needs sub-net.jar (kotlinc). Run: make kotlin_build${RST}"
+    fi
+    ;;
+
+  ifaces)
+    if jar_exists sub-net.jar && cmd_exists java; then
+      java -jar "${BIN_DIR}/sub-net.jar" ifaces
+    else
+      python3 "${SCRIPT_DIR}/src/sub.py" sysinfo
+    fi
+    ;;
+
+  # ── Hash ID → prefer Rust (fast, zero-dep)
+  hashid)
+    if bin_exists sub-recon; then
+      echo -e "${C}[sub-recon/Rust]${RST} Hash identifier"
+      "${BIN_DIR}/sub-recon" hashid "$@"
+    else
+      python3 "${SCRIPT_DIR}/src/sub.py" hashid "$@"
+    fi
+    ;;
+
+  # ── Password check → Rust only
+  pwcheck)
+    if bin_exists sub-recon; then
+      echo -e "${C}[sub-recon/Rust]${RST} Password strength"
+      "${BIN_DIR}/sub-recon" pwcheck "$@"
+    else
+      echo -e "${R}[!] pwcheck needs sub-recon (rustc). Run: make rust_build${RST}"
+    fi
+    ;;
+
+  # ── Subdomain → prefer Rust (TCP-connect probe, fast)
+  subdomain)
+    if bin_exists sub-recon; then
+      echo -e "${C}[sub-recon/Rust]${RST} Subdomain probe"
+      "${BIN_DIR}/sub-recon" subdomain "$@"
+    else
+      python3 "${SCRIPT_DIR}/src/sub.py" subdomain "$@"
+    fi
+    ;;
+
+  # ── Caesar / b64 → Rust
+  caesar)
+    if bin_exists sub-recon; then
+      "${BIN_DIR}/sub-recon" caesar "$@"
+    else
+      echo -e "${R}[!] caesar needs sub-recon (rustc). Run: make rust_build${RST}"
+    fi
+    ;;
+
+  b64)
+    if bin_exists sub-recon; then
+      "${BIN_DIR}/sub-recon" b64 "$@"
+    else
+      python3 "${SCRIPT_DIR}/src/sub.py" encode "$@" --mode b64
+    fi
+    ;;
+
+  # ── Sysinfo → ASM native if available, else Python
+  sysinfo)
+    if bin_exists sub-sysinfo; then
+      echo -e "${C}[sub-sysinfo/ASM]${RST} Native sysinfo"
+      "${BIN_DIR}/sub-sysinfo"
+    else
+      python3 "${SCRIPT_DIR}/src/sub.py" sysinfo
+    fi
+    ;;
+
+  # ── Build helpers exposed as sub commands
+  build)
+    make -C "${SCRIPT_DIR}" build
+    ;;
+
+  check-tools)
+    make -C "${SCRIPT_DIR}" check
+    ;;
+
+  # ── Extended help showing native backends
+  help|-h|--help)
+    python3 "${SCRIPT_DIR}/src/sub.py" help
+    echo
+    echo -e "  ${Y}─── Native Backends ──────────────────────────────${RST}"
+    echo -e "  ${C}sub-scan${RST}    (C)       ports, scan         — $(bin_exists sub-scan    && echo -e "${G}built${RST}" || echo -e "${R}not built${RST}")"
+    echo -e "  ${C}sub-recon${RST}   (Rust)    hashid/pwcheck/     — $(bin_exists sub-recon   && echo -e "${G}built${RST}" || echo -e "${R}not built${RST}")"
+    echo -e "               subdomain/caesar/b64"
+    echo -e "  ${C}sub-net${RST}     (Kotlin)  banner/traceroute/  — $(jar_exists sub-net.jar && echo -e "${G}built${RST}" || echo -e "${R}not built${RST}")"
+    echo -e "               geoip/rdns/ifaces"
+    echo -e "  ${C}sub-sysinfo${RST} (ASM)     sysinfo             — $(bin_exists sub-sysinfo && echo -e "${G}built${RST}" || echo -e "${R}not built${RST}")"
+    echo
+    echo -e "  Run ${W}sub build${RST} or ${W}make${RST} to compile native backends."
+    echo -e "  Run ${W}sub check-tools${RST} to see toolchain availability."
+    echo
+    ;;
+
+  # ── Everything else → Python master CLI
+  *)
+    python3 "${SCRIPT_DIR}/src/sub.py" "${COMMAND}" "$@"
+    ;;
+esac

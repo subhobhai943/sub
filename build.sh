@@ -1,25 +1,10 @@
-#!/bin/bash
-# Build script for sub .deb package
-set -e
+#!/usr/bin/env bash
+# build.sh — one-shot build helper (delegates to Makefile)
+# Usage: ./build.sh [target]   default target: all
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"   # always run from repo root
 
-echo "[*] Building sub .deb package..."
+TARGET="${1:-all}"
 
-# Requires: fpm
-# Install: gem install fpm
-if ! command -v fpm &> /dev/null; then
-    echo "[!] fpm not found. Install: gem install fpm"
-    exit 1
-fi
-
-fpm -s dir -t deb \
-    -n sub \
-    -v 1.0.0 \
-    --description "SUB Hacking & Info CLI Tool by Subhobhai" \
-    --url "https://github.com/subhobhai943/sub" \
-    --maintainer "Subhobhai Sarkar" \
-    --depends python3 \
-    --depends nmap \
-    --depends whois \
-    src/python/sub.py=/usr/bin/sub
-
-echo "[+] Build complete: sub_1.0.0_all.deb"
+echo "[build.sh] Running: make ${TARGET}"
+make "${TARGET}"
