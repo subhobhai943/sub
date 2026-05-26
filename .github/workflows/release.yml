@@ -13,80 +13,51 @@ jobs:
 
     steps:
 
-      # ── 1. Checkout
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ── 2. Install toolchains
       - name: Install toolchains
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y \
-            gcc rustc nasm m4 \
-            default-jdk \
-            devscripts debhelper dpkg-dev \
-            apt-utils gnupg
+          sudo apt-get install -y gcc rustc nasm m4 default-jdk devscripts debhelper dpkg-dev apt-utils gnupg
 
-      # ── 3. Generate GPG key
       - name: Generate GPG key
         id: gpg
         run: |
-          # Stop any running agent
           gpgconf --kill gpg-agent 2>/dev/null || true
-
-          # Minimal gpg config for CI
           mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
-          printf 'allow-loopback-pinentry\n' > ~/.gnupg/gpg-agent.conf
-          printf 'pinentry-mode loopback\nbatch\nno-tty\n' > ~/.gnupg/gpg.conf
-
-          # Restart agent
+          echo 'allow-loopback-pinentry' > ~/.gnupg/gpg-agent.conf
+          echo -e 'pinentry-mode loopback\nbatch\nno-tty' > ~/.gnupg/gpg.conf
           gpgconf --launch gpg-agent 2>/dev/null || true
           sleep 1
-
-          # Generate key — most reliable CI method
-          gpg --batch --passphrase '' \
-              --quick-generate-key \
-              'Subhadip Sarkar <sarkarsubhadip604@gmail.com>' \
-              rsa4096 default never
-
-          # Get key fingerprint
-          KEY_ID=$(gpg --list-keys --keyid-format SHORT \
-              sarkarsubhadip604@gmail.com \
-              | grep '^pub' | awk '{print $2}' | cut -d'/' -f2)
+          gpg --batch --passphrase '' --quick-generate-key 'Subhadip Sarkar <sarkarsubhadip604@gmail.com>' rsa4096 default never
+          KEY_ID=$(gpg --list-keys --keyid-format SHORT sarkarsubhadip604@gmail.com | grep '^pub' | awk '{print $2}' | cut -d'/' -f2)
           echo "KEY_ID=$KEY_ID" >> $GITHUB_OUTPUT
           echo "Key generated: $KEY_ID"
-
-          # Export public key for users
           gpg --armor --export sarkarsubhadip604@gmail.com > /tmp/sub.gpg.key
-          cat /tmp/sub.gpg.key | head -3
 
-      # ── 4. Build native backends
       - name: Build native backends
         run: make build
 
-      # ── 5. Patch dispatcher paths for installed layout
       - name: Patch dispatcher paths
         run: |
           sed -i 's|${ROOT}/src/sub.py|/usr/local/lib/sub/sub.py|g' sub
           sed -i 's|${SUB_BIN:-${ROOT}/bin}|${SUB_BIN:-/usr/local/lib/sub/bin}|g' sub
 
-      # ── 6. Build the .deb
       - name: Build .deb package
         run: |
           chmod +x sub
           dpkg-buildpackage -us -uc -b
           ls -lh ../sub_*.deb
 
-      # ── 7. Upload .deb to GitHub Release
       - name: Upload .deb to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: ../sub_*.deb
 
-      # ── 8. Build & push APT repo to apt-repo branch
       - name: Publish APT repo
         env:
           KEY_ID: ${{ steps.gpg.outputs.KEY_ID }}
@@ -95,77 +66,53 @@ jobs:
           git config user.name  "Subhadip Sarkar"
 
           DEB_FILE=$(ls ../sub_*.deb | head -1)
-          cp "$DEB_FILE" /tmp/
           DEB_BASENAME=$(basename "$DEB_FILE")
+          cp "$DEB_FILE" /tmp/
 
-          # Switch to apt-repo branch (create orphan if first time)
-          git fetch origin apt-repo 2>/dev/null && \
-            git checkout apt-repo || \
-            (git checkout --orphan apt-repo && git rm -rf . 2>/dev/null || true)
+          git fetch origin apt-repo 2>/dev/null && git checkout apt-repo || (git checkout --orphan apt-repo && git rm -rf . 2>/dev/null || true)
 
           mkdir -p dists/stable/main/binary-amd64 pool/main
-
           cp "/tmp/$DEB_BASENAME" pool/main/
           cp /tmp/sub.gpg.key sub.gpg.key
 
-          # Packages index
-          dpkg-scanpackages pool/main /dev/null \
-            > dists/stable/main/binary-amd64/Packages
+          dpkg-scanpackages pool/main /dev/null > dists/stable/main/binary-amd64/Packages
           gzip -kf dists/stable/main/binary-amd64/Packages
 
-          # Release file
-          {
-            echo "Origin: sub"
-            echo "Label: sub"
-            echo "Suite: stable"
-            echo "Codename: stable"
-            echo "Architectures: all amd64"
-            echo "Components: main"
-            echo "Description: sub - Polyglot hacking and utility CLI"
-          } > dists/stable/Release
+          printf 'Origin: sub\nLabel: sub\nSuite: stable\nCodename: stable\nArchitectures: all amd64\nComponents: main\nDescription: sub - Polyglot CLI\n' > dists/stable/Release
           apt-ftparchive release dists/stable >> dists/stable/Release
 
-          # Sign
-          gpg --batch --yes --passphrase '' --pinentry-mode loopback \
-            --clearsign -o dists/stable/InRelease dists/stable/Release
+          gpg --batch --yes --passphrase '' --pinentry-mode loopback --clearsign -o dists/stable/InRelease dists/stable/Release
+          gpg --batch --yes --passphrase '' --pinentry-mode loopback -abs -o dists/stable/Release.gpg dists/stable/Release
 
-          gpg --batch --yes --passphrase '' --pinentry-mode loopback \
-            -abs -o dists/stable/Release.gpg dists/stable/Release
+          python3 - <<'PYEOF'
+          content = '''<!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <title>sub APT Repository</title>
+            <style>
+              body { font-family: monospace; background:#0d1117; color:#c9d1d9; padding:2rem; }
+              h1   { color:#58a6ff; }
+              pre  { background:#161b22; padding:1rem; border-radius:6px; overflow-x:auto; }
+              a    { color:#58a6ff; }
+            </style>
+          </head>
+          <body>
+            <h1>sub &mdash; APT Repository</h1>
+            <p>Polyglot hacking &amp; utility CLI by <a href="https://github.com/subhobhai943">Subhadip Sarkar</a></p>
+            <h2>Install</h2>
+            <pre>
+          curl -fsSL https://subhobhai943.github.io/sub/sub.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/sub.gpg
 
-          # index.html
-          cat > index.html <<'HTML'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>sub APT Repository</title>
-  <style>
-    body { font-family: monospace; background:#0d1117; color:#c9d1d9; padding:2rem; }
-    h1   { color:#58a6ff; }
-    pre  { background:#161b22; padding:1rem; border-radius:6px; overflow-x:auto; }
-    a    { color:#58a6ff; }
-  </style>
-</head>
-<body>
-  <h1>sub &mdash; APT Repository</h1>
-  <p>Polyglot hacking &amp; utility CLI by
-    <a href="https://github.com/subhobhai943">Subhadip Sarkar</a>
-  </p>
-  <h2>Install</h2>
-  <pre>
-curl -fsSL https://subhobhai943.github.io/sub/sub.gpg.key \
-  | sudo gpg --dearmor -o /etc/apt/keyrings/sub.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/sub.gpg] https://subhobhai943.github.io/sub stable main" | sudo tee /etc/apt/sources.list.d/sub.list
 
-echo "deb [signed-by=/etc/apt/keyrings/sub.gpg] https://subhobhai943.github.io/sub stable main" \
-  | sudo tee /etc/apt/sources.list.d/sub.list
-
-sudo apt update
-sudo apt install sub
-  </pre>
-  <p><a href="https://github.com/subhobhai943/sub">GitHub &rarr;</a></p>
-</body>
-</html>
-HTML
+          sudo apt update && sudo apt install sub
+            </pre>
+            <p><a href="https://github.com/subhobhai943/sub">GitHub &rarr;</a></p>
+          </body>
+          </html>'''
+          open('index.html', 'w').write(content)
+          PYEOF
 
           git add .
           git commit -m "APT repo: ${{ github.ref_name || 'manual' }}"
