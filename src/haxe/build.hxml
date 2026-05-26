@@ -1,0 +1,14 @@
+# Haxe build targets for sub
+# Run any target with: haxe <target>.hxml
+
+# --- HashLink (native VM, recommended for desktop) ---
+# haxe build-hl.hxml
+
+# --- JavaScript ---
+# haxe build-js.hxml
+
+# --- Python ---
+# haxe build-py.hxml
+
+# --- C++ (native binary) ---
+# haxe build-cpp.hxml

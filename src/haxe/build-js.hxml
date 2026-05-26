@@ -1,0 +1,4 @@
+-main Sub
+-cp src/haxe
+-js sub.js
+# Run: node sub.js banner

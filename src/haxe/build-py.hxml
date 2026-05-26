@@ -1,0 +1,4 @@
+-main Sub
+-cp src/haxe
+-python sub.py
+# Run: python3 sub.py banner

@@ -1,0 +1,5 @@
+-main Sub
+-cp src/haxe
+-hl sub.hl
+# Run: hashlink sub.hl banner
+# Or:  hl sub.hl whoami
