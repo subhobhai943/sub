@@ -1,183 +1,262 @@
 #!/usr/bin/env bash
-# sub — Unified polyglot dispatcher
-# Routes commands to the best native backend, falls back to Python.
+# sub — Polyglot unified dispatcher
+# Wires: Python · C · Rust · Kotlin · Java · Haxe · CUDA · ASM · M4
 # Author: Subhobhai (subhobhai943)
+# Usage:  sub <command> [args...]
 
 set -euo pipefail
 
-# ── Locate script directory so we can find ./bin/ even if called via PATH
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIN_DIR="${SCRIPT_DIR}/bin"
+# ── Resolve repo root (works via PATH or direct call) ────────────────
+SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SELF")" && pwd)"
+BIN="${SUB_BIN:-${ROOT}/bin}"
+PY="${ROOT}/src/sub.py"
 
-# ── Allow override via env: SUB_BIN=/my/path sub ...
-BIN_DIR="${SUB_BIN:-$BIN_DIR}"
+# ── ANSI ─────────────────────────────────────────────────────────────
+R="\033[91m" G="\033[92m" Y="\033[93m" C="\033[96m" W="\033[97m" D="\033[2m" RST="\033[0m"
 
-# ── ANSI helpers
-R="\033[91m"; G="\033[92m"; Y="\033[93m"
-C="\033[96m"; W="\033[97m"; RST="\033[0m"
+has()     { command -v "$1" &>/dev/null; }
+bin()     { [ -x "${BIN}/$1" ]; }
+jar()     { [ -f "${BIN}/$1" ]; }
+java_ok() { has java; }
+py()      { python3 "$PY" "$@"; }
 
-cmd_exists() { command -v "$1" &>/dev/null; }
-bin_exists()  { [ -x "${BIN_DIR}/$1" ]; }
-jar_exists()  { [ -f "${BIN_DIR}/$1" ]; }
+# ── Helper: run a jar ─────────────────────────────────────────────────
+run_jar() { java -jar "${BIN}/$1" "${@:2}"; }
+run_java_class() { java -cp "${BIN}" "$@"; }
 
-# ─────────────────────────────────────────────────────────────
-# FAST NATIVE DISPATCH TABLE
-# Commands handled by native engines (C / Rust / Kotlin / Java)
-# ─────────────────────────────────────────────────────────────
+CMD="${1:-help}"; shift || true
 
-COMMAND="${1:-help}"
-shift || true   # remaining args are $@
+case "$CMD" in
 
-case "${COMMAND}" in
-
-  # ── Port scan → prefer C sub-scan (non-blocking, banner-grab)
-  #               fallback: Kotlin sub-net (threaded)
-  #               final:    Python sub.py
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PORTS / SCAN  →  C sub-scan (fastest, non-blocking + banner grab)
+#                   Kotlin sub-net.jar (threaded fallback)
+#                   Python sub.py (final fallback)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   ports|scan)
-    if bin_exists sub-scan; then
-      echo -e "${C}[sub-scan/C]${RST} Fast native port scanner"
-      "${BIN_DIR}/sub-scan" "$@"
-    elif jar_exists sub-net.jar && cmd_exists java; then
-      echo -e "${C}[sub-net/Kotlin]${RST} Threaded Kotlin scanner"
-      TARGET="${1:-}"; START="${2:-1}"; END="${3:-1024}"
-      java -jar "${BIN_DIR}/sub-net.jar" scan "$TARGET" "$START" "$END"
+    if bin sub-scan; then
+      echo -e "${C}[sub-scan / C]${RST}  fast non-blocking scanner"
+      "${BIN}/sub-scan" "$@"
+    elif jar sub-net.jar && java_ok; then
+      echo -e "${C}[sub-net / Kotlin]${RST}  threaded scanner"
+      T="${1:-}"; S="${2:-1}"; E="${3:-1024}"
+      run_jar sub-net.jar scan "$T" "$S" "$E"
     else
-      python3 "${SCRIPT_DIR}/src/sub.py" "${COMMAND}" "$@"
-    fi
-    ;;
+      py ports "$@"
+    fi ;;
 
-  # ── Banner grab → prefer Kotlin (multi-line reader)
-  #                  fallback: Python
-  banner-grab|banner)
-    if jar_exists sub-net.jar && cmd_exists java; then
-      echo -e "${C}[sub-net/Kotlin]${RST} Banner grab"
-      java -jar "${BIN_DIR}/sub-net.jar" banner "$@"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# BANNER-GRAB   →  Kotlin sub-net (multi-line reader)  →  Python
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  banner-grab|banner-net)
+    if jar sub-net.jar && java_ok; then
+      echo -e "${C}[sub-net / Kotlin]${RST}  banner grab"
+      run_jar sub-net.jar banner "$@"
     else
-      python3 "${SCRIPT_DIR}/src/sub.py" banner-grab "$@"
-    fi
-    ;;
+      py banner-grab "$@"
+    fi ;;
 
-  # ── Traceroute → Kotlin wrapper (cleaner output)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TRACEROUTE    →  Kotlin  →  Python
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   traceroute)
-    if jar_exists sub-net.jar && cmd_exists java; then
-      echo -e "${C}[sub-net/Kotlin]${RST} Traceroute"
-      java -jar "${BIN_DIR}/sub-net.jar" traceroute "$@"
+    if jar sub-net.jar && java_ok; then
+      echo -e "${C}[sub-net / Kotlin]${RST}  traceroute"
+      run_jar sub-net.jar traceroute "$@"
     else
-      python3 "${SCRIPT_DIR}/src/sub.py" traceroute "$@"
-    fi
-    ;;
+      py traceroute "$@"
+    fi ;;
 
-  # ── GeoIP / Reverse DNS → Kotlin (ip-api.com, no key)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# GEOIP         →  Kotlin (ip-api.com, no key)  →  Python ipinfo
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   geoip)
-    if jar_exists sub-net.jar && cmd_exists java; then
-      echo -e "${C}[sub-net/Kotlin]${RST} GeoIP"
-      java -jar "${BIN_DIR}/sub-net.jar" geoip "$@"
+    if jar sub-net.jar && java_ok; then
+      echo -e "${C}[sub-net / Kotlin]${RST}  geoip"
+      run_jar sub-net.jar geoip "$@"
     else
-      python3 "${SCRIPT_DIR}/src/sub.py" ipinfo "$@"
-    fi
-    ;;
+      py ipinfo "$@"
+    fi ;;
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# RDNS / IFACES →  Kotlin only
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   rdns)
-    if jar_exists sub-net.jar && cmd_exists java; then
-      java -jar "${BIN_DIR}/sub-net.jar" rdns "$@"
-    else
-      echo -e "${R}[!] rdns needs sub-net.jar (kotlinc). Run: make kotlin_build${RST}"
-    fi
-    ;;
+    if jar sub-net.jar && java_ok; then
+      run_jar sub-net.jar rdns "$@"
+    else echo -e "${R}[!] rdns needs sub-net.jar — run: make kotlin_core_build${RST}"; fi ;;
 
   ifaces)
-    if jar_exists sub-net.jar && cmd_exists java; then
-      java -jar "${BIN_DIR}/sub-net.jar" ifaces
+    if jar sub-net.jar && java_ok; then
+      run_jar sub-net.jar ifaces
     else
-      python3 "${SCRIPT_DIR}/src/sub.py" sysinfo
-    fi
-    ;;
+      py sysinfo
+    fi ;;
 
-  # ── Hash ID → prefer Rust (fast, zero-dep)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# HASHID        →  Rust sub-recon (zero deps)  →  Python
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   hashid)
-    if bin_exists sub-recon; then
-      echo -e "${C}[sub-recon/Rust]${RST} Hash identifier"
-      "${BIN_DIR}/sub-recon" hashid "$@"
-    else
-      python3 "${SCRIPT_DIR}/src/sub.py" hashid "$@"
-    fi
-    ;;
+    if bin sub-recon; then
+      echo -e "${C}[sub-recon / Rust]${RST}  hash identifier"
+      "${BIN}/sub-recon" hashid "$@"
+    else py hashid "$@"; fi ;;
 
-  # ── Password check → Rust only
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# PWCHECK       →  Rust only
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   pwcheck)
-    if bin_exists sub-recon; then
-      echo -e "${C}[sub-recon/Rust]${RST} Password strength"
-      "${BIN_DIR}/sub-recon" pwcheck "$@"
-    else
-      echo -e "${R}[!] pwcheck needs sub-recon (rustc). Run: make rust_build${RST}"
-    fi
-    ;;
+    if bin sub-recon; then
+      echo -e "${C}[sub-recon / Rust]${RST}  password strength"
+      "${BIN}/sub-recon" pwcheck "$@"
+    else echo -e "${R}[!] pwcheck needs sub-recon — run: make rust_build${RST}"; fi ;;
 
-  # ── Subdomain → prefer Rust (TCP-connect probe, fast)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SUBDOMAIN     →  Rust (TCP-connect probe, fast)  →  Python
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   subdomain)
-    if bin_exists sub-recon; then
-      echo -e "${C}[sub-recon/Rust]${RST} Subdomain probe"
-      "${BIN_DIR}/sub-recon" subdomain "$@"
-    else
-      python3 "${SCRIPT_DIR}/src/sub.py" subdomain "$@"
-    fi
-    ;;
+    if bin sub-recon; then
+      echo -e "${C}[sub-recon / Rust]${RST}  subdomain probe"
+      "${BIN}/sub-recon" subdomain "$@"
+    else py subdomain "$@"; fi ;;
 
-  # ── Caesar / b64 → Rust
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# CAESAR / B64  →  Rust
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   caesar)
-    if bin_exists sub-recon; then
-      "${BIN_DIR}/sub-recon" caesar "$@"
-    else
-      echo -e "${R}[!] caesar needs sub-recon (rustc). Run: make rust_build${RST}"
-    fi
-    ;;
+    if bin sub-recon; then "${BIN}/sub-recon" caesar "$@"
+    else echo -e "${R}[!] caesar needs sub-recon — run: make rust_build${RST}"; fi ;;
 
   b64)
-    if bin_exists sub-recon; then
-      "${BIN_DIR}/sub-recon" b64 "$@"
-    else
-      python3 "${SCRIPT_DIR}/src/sub.py" encode "$@" --mode b64
-    fi
-    ;;
+    if bin sub-recon; then "${BIN}/sub-recon" b64 "$@"
+    else py encode "$@" --mode b64; fi ;;
 
-  # ── Sysinfo → ASM native if available, else Python
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SYSINFO       →  ASM sub-sysinfo (bare metal)  →  Python
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   sysinfo)
-    if bin_exists sub-sysinfo; then
-      echo -e "${C}[sub-sysinfo/ASM]${RST} Native sysinfo"
-      "${BIN_DIR}/sub-sysinfo"
+    if bin sub-sysinfo; then
+      echo -e "${C}[sub-sysinfo / ASM]${RST}  native sysinfo"
+      "${BIN}/sub-sysinfo"
+    elif bin sub-asm; then
+      echo -e "${C}[sub-asm / ASM]${RST}  native sysinfo"
+      "${BIN}/sub-asm"
+    else py sysinfo; fi ;;
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# GPUINFO       →  CUDA sub-cuda (GPU kernel launch)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  gpuinfo|cuda)
+    if bin sub-cuda; then
+      echo -e "${C}[sub-cuda / CUDA C++]${RST}  GPU info + kernel demo"
+      "${BIN}/sub-cuda" gpuinfo
     else
-      python3 "${SCRIPT_DIR}/src/sub.py" sysinfo
-    fi
-    ;;
+      echo -e "${R}[!] gpuinfo needs sub-cuda — run: make cuda_build${RST}"
+      echo -e "${D}    Requires NVIDIA GPU + nvcc (CUDA toolkit)${RST}"
+    fi ;;
 
-  # ── Build helpers exposed as sub commands
-  build)
-    make -C "${SCRIPT_DIR}" build
-    ;;
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# WHOAMI        →  M4 pre-rendered txt  (fastest, zero runtime)
+#                   Haxe sub-haxe       (cross-platform compiled)
+#                   CUDA sub-cuda       (GPU whoami)
+#                   Kotlin sub-kt.jar   (JVM)
+#                   Java  Sub.class     (JVM)
+#                   Python sub.py       (final fallback)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  whoami)
+    if [ -f "${BIN}/sub-whoami.txt" ]; then
+      echo -e "${C}[M4 macro]${RST}  pre-rendered whoami"
+      cat "${BIN}/sub-whoami.txt"
+    elif bin sub-haxe; then
+      echo -e "${C}[sub-haxe / Haxe→C++]${RST}"
+      "${BIN}/sub-haxe" whoami
+    elif bin sub-cuda; then
+      echo -e "${C}[sub-cuda / CUDA C++]${RST}"
+      "${BIN}/sub-cuda" whoami
+    elif jar sub-kt.jar && java_ok; then
+      echo -e "${C}[sub-kt / Kotlin]${RST}"
+      run_jar sub-kt.jar whoami
+    elif [ -f "${BIN}/Sub.class" ] && java_ok; then
+      echo -e "${C}[Sub / Java]${RST}"
+      run_java_class Sub whoami
+    else
+      py whoami
+    fi ;;
 
-  check-tools)
-    make -C "${SCRIPT_DIR}" check
-    ;;
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# BANNER (ascii art)  →  CUDA  →  Haxe  →  Kotlin  →  Java  →  Python
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  banner)
+    if bin sub-cuda; then   "${BIN}/sub-cuda" banner
+    elif bin sub-haxe; then "${BIN}/sub-haxe" banner
+    elif jar sub-kt.jar && java_ok; then run_jar sub-kt.jar banner
+    elif [ -f "${BIN}/Sub.class" ] && java_ok; then run_java_class Sub banner
+    else py banner; fi ;;
 
-  # ── Extended help showing native backends
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# INFO (sysinfo variant)  →  Kotlin sub-kt  →  Java Sub  →  Python
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  info)
+    if jar sub-kt.jar && java_ok; then
+      echo -e "${C}[sub-kt / Kotlin]${RST}  system info"
+      run_jar sub-kt.jar info
+    elif [ -f "${BIN}/Sub.class" ] && java_ok; then
+      echo -e "${C}[Sub / Java]${RST}  system info"
+      run_java_class Sub info
+    elif bin sub-haxe; then
+      echo -e "${C}[sub-haxe / Haxe]${RST}  system info"
+      "${BIN}/sub-haxe" info
+    else
+      py sysinfo
+    fi ;;
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# M4 (raw macro expansion)  →  prints sub-whoami.txt or runs m4
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  m4|macro)
+    if [ -f "${BIN}/sub-whoami.txt" ]; then
+      cat "${BIN}/sub-whoami.txt"
+    elif has m4; then
+      m4 "${ROOT}/src/m4/sub.m4"
+    else
+      echo -e "${R}[!] m4 not found — run: sudo apt install m4${RST}"
+    fi ;;
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# BUILD / CHECK helpers exposed as sub commands
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  build)       make -C "$ROOT" build ;;
+  check-tools) make -C "$ROOT" check ;;
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# HELP  →  Python master help + native backend status overlay
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   help|-h|--help)
-    python3 "${SCRIPT_DIR}/src/sub.py" help
+    py help
     echo
-    echo -e "  ${Y}─── Native Backends ──────────────────────────────${RST}"
-    echo -e "  ${C}sub-scan${RST}    (C)       ports, scan         — $(bin_exists sub-scan    && echo -e "${G}built${RST}" || echo -e "${R}not built${RST}")"
-    echo -e "  ${C}sub-recon${RST}   (Rust)    hashid/pwcheck/     — $(bin_exists sub-recon   && echo -e "${G}built${RST}" || echo -e "${R}not built${RST}")"
-    echo -e "               subdomain/caesar/b64"
-    echo -e "  ${C}sub-net${RST}     (Kotlin)  banner/traceroute/  — $(jar_exists sub-net.jar && echo -e "${G}built${RST}" || echo -e "${R}not built${RST}")"
-    echo -e "               geoip/rdns/ifaces"
-    echo -e "  ${C}sub-sysinfo${RST} (ASM)     sysinfo             — $(bin_exists sub-sysinfo && echo -e "${G}built${RST}" || echo -e "${R}not built${RST}")"
+    echo -e "  ${Y}─── Native Backends ────────────────────────────────────────${RST}"
+    _st() { [ -e "${BIN}/$1" ] && echo -e "${G}built${RST}" || echo -e "${R}not built${RST}"; }
+    echo -e "  ${C}sub-scan${RST}      C / gcc          ports scan          $(_st sub-scan)"
+    echo -e "  ${C}sub-recon${RST}     Rust / rustc      hashid pwcheck      $(_st sub-recon)"
+    echo -e "                                subdomain caesar b64"
+    echo -e "  ${C}sub-net.jar${RST}   Kotlin / kotlinc  banner traceroute   $(_st sub-net.jar)"
+    echo -e "                                geoip rdns ifaces"
+    echo -e "  ${C}sub-kt.jar${RST}    Kotlin / kotlinc  whoami info         $(_st sub-kt.jar)"
+    echo -e "  ${C}Sub.class${RST}     Java / javac      whoami info ports   $(_st Sub.class)"
+    echo -e "  ${C}sub-haxe${RST}      Haxe→C++ / haxe   whoami banner info  $(_st sub-haxe)"
+    echo -e "  ${C}sub-cuda${RST}      CUDA C++ / nvcc   gpuinfo whoami      $(_st sub-cuda)"
+    echo -e "  ${C}sub-asm${RST}       NASM/GAS / nasm   sysinfo             $(_st sub-asm)"
+    echo -e "  ${C}sub-sysinfo${RST}   NASM / nasm       sysinfo             $(_st sub-sysinfo)"
+    echo -e "  ${C}sub-whoami.txt${RST} M4 macros / m4   whoami (static)     $(_st sub-whoami.txt)"
     echo
-    echo -e "  Run ${W}sub build${RST} or ${W}make${RST} to compile native backends."
-    echo -e "  Run ${W}sub check-tools${RST} to see toolchain availability."
-    echo
-    ;;
+    echo -e "  New commands:  ${W}gpuinfo${RST}  ${W}geoip${RST}  ${W}rdns${RST}  ${W}ifaces${RST}  ${W}pwcheck${RST}  ${W}caesar${RST}  ${W}b64${RST}  ${W}m4${RST}  ${W}info${RST}"
+    echo -e "  Run ${W}sub build${RST} or ${W}make${RST} to compile all backends."
+    echo -e "  Run ${W}sub check-tools${RST} to audit toolchain + built binaries."
+    echo ;;
 
-  # ── Everything else → Python master CLI
-  *)
-    python3 "${SCRIPT_DIR}/src/sub.py" "${COMMAND}" "$@"
-    ;;
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# EVERYTHING ELSE  →  Python master CLI
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  *) py "$CMD" "$@" ;;
 esac

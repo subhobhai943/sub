@@ -1,4 +1,3 @@
--main Sub
 -cp src/haxe
--cpp bin/
-# Run: ./bin/Sub banner
+-main Sub
+--cpp bin/sub-haxe-cpp
