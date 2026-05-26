@@ -1,8 +1,8 @@
 Source: sub
 Section: utils
 Priority: optional
-Maintainer: Subhobhai Sarkar <subhobhai943@users.noreply.github.com>
-Build-Depends: debhelper-compat (= 13)
+Maintainer: Subhadip Sarkar <sarkarsubhadip604@gmail.com>
+Build-Depends: debhelper-compat (= 13), build-essential
 Standards-Version: 4.6.2
 Homepage: https://github.com/subhobhai943/sub
 Vcs-Git: https://github.com/subhobhai943/sub.git
@@ -17,8 +17,8 @@ Description: Polyglot hacking & utility CLI tool
  sub is a multi-backend command-line toolkit written in Python, C, Rust,
  Kotlin, Java, Haxe, CUDA C++, Assembly (x86_64/aarch64), and M4.
  .
- A single 'sub' bash dispatcher routes each command to the fastest
- available native backend, with graceful fallback to Python.
+ A single bash dispatcher routes each command to the fastest available
+ native backend, with graceful fallback to Python.
  .
  Commands: whoami, sysinfo, info, myip, scan, ports, subdomain,
  banner-grab, geoip, rdns, ifaces, traceroute, dns, whois, ipinfo,

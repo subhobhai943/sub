@@ -8,4 +8,4 @@ sub (1.0.0-1) stable; urgency=low
     ping, headers, netstat, hashid, pwcheck, caesar, b64, hash, encode,
     generate, weather, myrepos, gpuinfo, m4, version, check-tools.
 
- -- Subhobhai Sarkar <subhobhai943@users.noreply.github.com>  Tue, 26 May 2026 22:43:00 +0530
+ -- Subhadip Sarkar <sarkarsubhadip604@gmail.com>  Wed, 27 May 2026 00:09:00 +0530
