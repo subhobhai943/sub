@@ -3,22 +3,19 @@
 	dh $@
 
 override_dh_auto_build:
-	# Build all native backends that have toolchains available
 	$(MAKE) build || true
 
 override_dh_auto_install:
-	# Install the bash dispatcher (entry point)
-	install -D -m 755 sub debian/sub/usr/local/bin/sub
-	# Install Python master CLI (fallback)
-	install -D -m 644 src/sub.py debian/sub/usr/local/lib/sub/sub.py
-	# Install native binaries if they were built
-	@[ -x bin/sub-scan    ] && install -D -m 755 bin/sub-scan    debian/sub/usr/local/lib/sub/bin/sub-scan    || true
-	@[ -x bin/sub-recon   ] && install -D -m 755 bin/sub-recon   debian/sub/usr/local/lib/sub/bin/sub-recon   || true
-	@[ -f bin/sub-net.jar ] && install -D -m 644 bin/sub-net.jar debian/sub/usr/local/lib/sub/bin/sub-net.jar || true
-	@[ -f bin/sub-kt.jar  ] && install -D -m 644 bin/sub-kt.jar  debian/sub/usr/local/lib/sub/bin/sub-kt.jar  || true
-	@[ -x bin/sub-haxe    ] && install -D -m 755 bin/sub-haxe    debian/sub/usr/local/lib/sub/bin/sub-haxe    || true
-	@[ -x bin/sub-cuda    ] && install -D -m 755 bin/sub-cuda    debian/sub/usr/local/lib/sub/bin/sub-cuda    || true
-	@[ -x bin/sub-asm     ] && install -D -m 755 bin/sub-asm     debian/sub/usr/local/lib/sub/bin/sub-asm     || true
-	@[ -x bin/sub-sysinfo ] && install -D -m 755 bin/sub-sysinfo debian/sub/usr/local/lib/sub/bin/sub-sysinfo || true
-	@[ -f bin/sub-whoami.txt ] && install -D -m 644 bin/sub-whoami.txt debian/sub/usr/local/lib/sub/bin/sub-whoami.txt || true
-	@[ -f bin/Sub.class   ] && install -D -m 644 bin/Sub.class   debian/sub/usr/local/lib/sub/bin/Sub.class   || true
+	install -D -m 755 sub                  debian/sub/usr/local/bin/sub
+	install -D -m 644 src/python/sub.py    debian/sub/usr/local/lib/sub/sub.py
+	[ -x bin/sub-scan     ] && install -D -m 755 bin/sub-scan     debian/sub/usr/local/lib/sub/bin/sub-scan     || true
+	[ -x bin/sub-recon    ] && install -D -m 755 bin/sub-recon    debian/sub/usr/local/lib/sub/bin/sub-recon    || true
+	[ -f bin/sub-net.jar  ] && install -D -m 644 bin/sub-net.jar  debian/sub/usr/local/lib/sub/bin/sub-net.jar  || true
+	[ -f bin/sub-kt.jar   ] && install -D -m 644 bin/sub-kt.jar   debian/sub/usr/local/lib/sub/bin/sub-kt.jar   || true
+	[ -x bin/sub-haxe     ] && install -D -m 755 bin/sub-haxe     debian/sub/usr/local/lib/sub/bin/sub-haxe     || true
+	[ -x bin/sub-cuda     ] && install -D -m 755 bin/sub-cuda     debian/sub/usr/local/lib/sub/bin/sub-cuda     || true
+	[ -x bin/sub-asm      ] && install -D -m 755 bin/sub-asm      debian/sub/usr/local/lib/sub/bin/sub-asm      || true
+	[ -x bin/sub-sysinfo  ] && install -D -m 755 bin/sub-sysinfo  debian/sub/usr/local/lib/sub/bin/sub-sysinfo  || true
+	[ -f bin/sub-whoami.txt ] && install -D -m 644 bin/sub-whoami.txt debian/sub/usr/local/lib/sub/bin/sub-whoami.txt || true
+	[ -f bin/Sub.class    ] && install -D -m 644 bin/Sub.class    debian/sub/usr/local/lib/sub/bin/Sub.class    || true
+	[ -f bin/OsintTools.class ] && install -D -m 644 bin/OsintTools.class debian/sub/usr/local/lib/sub/bin/OsintTools.class || true
