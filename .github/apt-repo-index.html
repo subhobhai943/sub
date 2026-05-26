@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>sub APT Repository</title>
+  <style>
+    body { font-family: monospace; background: #0d1117; color: #c9d1d9; padding: 2rem; }
+    h1   { color: #58a6ff; }
+    pre  { background: #161b22; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+    a    { color: #58a6ff; }
+  </style>
+</head>
+<body>
+  <h1>sub &mdash; APT Repository</h1>
+  <p>
+    Polyglot hacking &amp; utility CLI by
+    <a href="https://github.com/subhobhai943">Subhadip Sarkar</a>
+  </p>
+
+  <h2>Install</h2>
+  <pre>
+curl -fsSL https://subhobhai943.github.io/sub/sub.gpg.key \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/sub.gpg
+
+echo "deb [signed-by=/etc/apt/keyrings/sub.gpg] https://subhobhai943.github.io/sub stable main" \
+  | sudo tee /etc/apt/sources.list.d/sub.list
+
+sudo apt update
+sudo apt install sub
+  </pre>
+
+  <p><a href="https://github.com/subhobhai943/sub">GitHub &rarr;</a></p>
+</body>
+</html>
