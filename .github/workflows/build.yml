@@ -1,112 +1,64 @@
-name: Build & Release SUB
+name: Build & Release sub
 
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 jobs:
-  build:
-    name: Build All (C + Rust + ASM + Kotlin + Java)
+  build-python:
+    name: Build Python Package
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install build dependencies
+      - uses: actions/checkout@v4
+      - name: Install fpm
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            gcc rustc nasm binutils \
-            python3 \
-            default-jdk \
-            debhelper dh-python
-
-      - name: Install Kotlin
-        run: |
-          curl -sL https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip -o kotlin.zip
-          unzip -q kotlin.zip -d /opt/kotlin
-          echo "/opt/kotlin/kotlinc/bin" >> $GITHUB_PATH
-
-      - name: Build C scanner
-        run: gcc -O2 -Wall -o src/core/sub-scan src/core/scanner.c
-
-      - name: Build Rust recon
-        run: rustc -O -o src/core/sub-recon src/core/recon.rs
-
-      - name: Build Assembly sysinfo
-        run: |
-          nasm -f elf64 src/core/sysinfo.asm -o src/core/sysinfo.o
-          ld -o src/core/sub-sysinfo src/core/sysinfo.o
-          rm src/core/sysinfo.o
-
-      - name: Build Kotlin JAR
-        run: kotlinc src/core/NetUtils.kt -include-runtime -d src/core/sub-net.jar
-
-      - name: Build Java JAR
-        run: |
-          mkdir -p src/core/java_classes
-          javac -d src/core/java_classes src/core/OsintTools.java
-          jar cfe src/core/sub-osint.jar OsintTools -C src/core/java_classes .
-          rm -rf src/core/java_classes
-
+          sudo apt-get install -y ruby ruby-dev
+          sudo gem install fpm
       - name: Build .deb
-        run: |
-          dpkg-buildpackage -us -uc -b
-          mkdir -p dist
-          mv ../*.deb dist/ 2>/dev/null || true
-
-      - name: Upload artifact
+        run: bash build.sh
+      - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sub-all
-          path: |
-            dist/*.deb
-            src/core/sub-scan
-            src/core/sub-recon
-            src/core/sub-sysinfo
-            src/core/sub-net.jar
-            src/core/sub-osint.jar
+          name: sub-deb
+          path: '*.deb'
 
-      - name: GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+  build-kotlin:
+    name: Compile Kotlin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
-          files: |
-            dist/*.deb
-            src/core/sub-scan
-            src/core/sub-recon
-            src/core/sub-sysinfo
-            src/core/sub-net.jar
-            src/core/sub-osint.jar
-          body: |
-            ## SUB ${{ github.ref_name }}
-            **6-language CLI toolkit: Python · C · Rust · Assembly · Kotlin · Java**
+          distribution: temurin
+          java-version: '17'
+      - name: Install Kotlin
+        run: sudo snap install kotlin --classic
+      - name: Compile
+        run: kotlinc src/kotlin/Sub.kt -include-runtime -d sub-kotlin.jar
+      - name: Upload Kotlin JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: sub-kotlin-jar
+          path: sub-kotlin.jar
 
-            ### Install
-            ```bash
-            curl -sL https://raw.githubusercontent.com/subhobhai943/sub/main/install.sh | sudo bash
-            ```
-
-            | Command | Engine | Description |
-            |---|---|---|
-            | `sub scan <target>` | C | Fast TCP + banner |
-            | `sub netscan <host>` | Kotlin | Threaded scan |
-            | `sub geoip <ip>` | Kotlin | IP geolocation |
-            | `sub rdns <ip>` | Kotlin | Reverse DNS |
-            | `sub grab <host> <port>` | Kotlin | Banner grab |
-            | `sub traceroute <host>` | Kotlin | Traceroute |
-            | `sub ifaces` | Kotlin | Network interfaces |
-            | `sub username <name>` | Java | Username search |
-            | `sub emailhdr <file>` | Java | Email header analysis |
-            | `sub expand <url>` | Java | URL expander |
-            | `sub httpstat <url>` | Java | HTTP fingerprint |
-            | `sub hashid <hash>` | Rust | Hash identifier |
-            | `sub pwcheck <pw>` | Rust | Password strength |
-            | `sub subdomain <domain>` | Rust | Subdomain enum |
-            | `sub caesar <text> <n>` | Rust | Caesar cipher |
-            | `sub rawsys` | Assembly | Raw syscall info |
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-java:
+    name: Compile Java
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile
+        run: javac src/java/Sub.java -d out/
+      - name: Package JAR
+        run: |
+          cd out
+          jar cfe ../sub-java.jar Sub .
+      - name: Upload Java JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: sub-java-jar
+          path: sub-java.jar

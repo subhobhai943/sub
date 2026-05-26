@@ -8,13 +8,8 @@ Homepage: https://github.com/subhobhai943/sub
 
 Package: sub
 Architecture: all
-Depends: python3 (>= 3.8), ${misc:Depends}
-Recommends: nmap, whois
-Description: SUB - Hacking toolkit and developer info tool
- A powerful Linux CLI tool by Subhobhai (subhobhai943).
- Includes network scanning, port checking, WHOIS lookups,
- DNS resolution, HTTP header analysis, system info,
- and developer profile information.
- .
- Install nmap and whois for full functionality:
-   sudo apt install nmap whois
+Depends: python3, nmap, whois
+Description: SUB — Hacking & Info CLI Tool by Subhobhai
+ The sub tool is a mixed-purpose CLI providing network reconnaissance,
+ port scanning, WHOIS lookups, system information, and author info.
+ Built by Subhobhai Sarkar (subhobhai943).

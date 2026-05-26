@@ -1,12 +1,25 @@
-#!/usr/bin/env bash
-# Build a .deb package for SUB
+#!/bin/bash
+# Build script for sub .deb package
 set -e
 
-echo "[*] Installing build dependencies..."
-sudo apt-get install -y python3 debhelper dh-python
+echo "[*] Building sub .deb package..."
 
-echo "[*] Building .deb package..."
-dpkg-buildpackage -us -uc -b
+# Requires: fpm
+# Install: gem install fpm
+if ! command -v fpm &> /dev/null; then
+    echo "[!] fpm not found. Install: gem install fpm"
+    exit 1
+fi
 
-echo "[+] Build complete! Check parent directory for .deb file."
-ls ../*.deb 2>/dev/null || echo "(no .deb found — check for errors above)"
+fpm -s dir -t deb \
+    -n sub \
+    -v 1.0.0 \
+    --description "SUB Hacking & Info CLI Tool by Subhobhai" \
+    --url "https://github.com/subhobhai943/sub" \
+    --maintainer "Subhobhai Sarkar" \
+    --depends python3 \
+    --depends nmap \
+    --depends whois \
+    src/python/sub.py=/usr/bin/sub
+
+echo "[+] Build complete: sub_1.0.0_all.deb"

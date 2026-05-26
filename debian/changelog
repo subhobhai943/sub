@@ -1,7 +1,7 @@
-sub (1.0.0-1) unstable; urgency=low
+sub (1.0.0) unstable; urgency=low
 
-  * Initial release of SUB CLI tool
-  * Commands: whoami, sysinfo, scan, ports, whois, dns, ping, headers, banner
-  * Hacking utilities + developer info
+  * Initial release.
+  * Python, Kotlin, and Java CLI implementations.
+  * Commands: banner, whoami, info, scan, ports, whois, update.
 
- -- Subhobhai Sarkar <subhobhai943@github.com>  Tue, 26 May 2026 19:00:00 +0530
+ -- Subhobhai Sarkar <subhobhai943@github.com>  Tue, 26 May 2026 20:00:00 +0530
