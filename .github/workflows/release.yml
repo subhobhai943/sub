@@ -100,30 +100,28 @@ jobs:
           git config user.email "sarkarsubhadip604@gmail.com"
           git config user.name "Subhadip Sarkar"
 
-          # ── Stash everything we need before touching the working tree ──
+          # ── 1. Copy everything needed to /tmp BEFORE touching the working tree ──
           DEB_FILE=$(ls ../sub_*.deb | head -1)
           DEB_BASENAME=$(basename "$DEB_FILE")
           cp "$DEB_FILE" /tmp/
           cp .github/apt-repo-index.html /tmp/apt-repo-index.html
-          cp /tmp/sub.gpg.key /tmp/sub.gpg.key   # already there, just be explicit
+          # sub.gpg.key is already in /tmp from the Generate GPG key step
 
-          # ── Clean state: reset & remove ALL untracked/modified files ──
-          # This is required so git can switch branches without complaints
-          # about untracked files that would be overwritten by checkout.
+          # ── 2. Hard-clean the working tree so checkout never blocks ──
           git reset --hard HEAD
           git clean -fdx
 
-          # ── Switch to apt-repo branch (or create orphan if first run) ──
-          if git fetch origin apt-repo 2>/dev/null; then
-            git checkout apt-repo
-            # Pull latest so we're not behind (avoids non-fast-forward push)
-            git pull --ff-only origin apt-repo 2>/dev/null || true
+          # ── 3. Switch to apt-repo (create orphan on first run) ──────
+          if git ls-remote --exit-code origin apt-repo &>/dev/null; then
+            # Branch exists remotely — check it out tracking the remote
+            git checkout -B apt-repo origin/apt-repo
           else
+            # First run — create a fully empty orphan branch
             git checkout --orphan apt-repo
             git rm -rf . 2>/dev/null || true
           fi
 
-          # ── Rebuild APT repo structure from /tmp ──────────────────────
+          # ── 4. Rebuild APT repo structure ───────────────────────────
           mkdir -p dists/stable/main/binary-amd64 pool/main
           cp "/tmp/$DEB_BASENAME" pool/main/
           cp /tmp/sub.gpg.key sub.gpg.key
@@ -141,6 +139,11 @@ jobs:
 
           cp /tmp/apt-repo-index.html index.html
 
+          # ── 5. Commit + push ──────────────────────────────────────
           git add .
           git commit -m "APT repo: ${{ github.ref_name || 'manual' }}"
-          git push origin apt-repo
+          # force-with-lease: safe force push — only overwrites if remote
+          # hasn't changed since we fetched it (step 3 above). This is the
+          # correct strategy for a CI-managed branch that only this workflow
+          # ever writes to.
+          git push --force-with-lease origin apt-repo
