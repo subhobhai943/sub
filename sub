@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # sub — Polyglot unified dispatcher
-# Wires: Python · C · Rust · Kotlin · Java · Haxe · CUDA · ASM · M4
+# Wires: Python · C · Rust · Kotlin · Java · Haxe · CUDA · ASM · M4 · Bash
 # Author: Subhobhai (subhobhai943)
 # Usage:  sub <command> [args...]
 
@@ -28,6 +28,75 @@ run_java_class() { java -cp "${BIN}" "$@"; }
 CMD="${1:-help}"; shift || true
 
 case "$CMD" in
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# WEATHER  →  Pure Bash + curl + wttr.in (no API key, no build needed)
+#   Usage:  sub weather            → auto-detect city from IP
+#           sub weather <city>     → weather for a specific city
+#           sub weather <city> -v  → verbose (full wttr.in report)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  weather)
+    if ! has curl; then
+      echo -e "${R}[!] weather needs curl — run: sudo apt install curl${RST}"
+      exit 1
+    fi
+    CITY="${1:-}"
+    VERBOSE=false
+    shift || true
+    for arg in "$@"; do
+      [ "$arg" = "-v" ] || [ "$arg" = "--verbose" ] && VERBOSE=true
+    done
+
+    # auto-detect city from IP if not provided
+    if [ -z "$CITY" ]; then
+      CITY="$(curl -sf "https://ipinfo.io/city" 2>/dev/null || echo "")"
+      if [ -z "$CITY" ]; then
+        echo -e "${Y}[!] Could not detect city. Using default (London).${RST}"
+        CITY="London"
+      else
+        echo -e "${D}[auto-detected city: ${CITY}]${RST}"
+      fi
+    fi
+
+    CITY_ENC="${CITY// /+}"
+
+    if $VERBOSE; then
+      echo -e "${C}[weather / Bash+curl]${RST}  wttr.in verbose report for: ${W}${CITY}${RST}\n"
+      curl -sf "https://wttr.in/${CITY_ENC}?T" || echo -e "${R}[!] Failed to fetch weather.${RST}"
+    else
+      echo -e "${C}[weather / Bash+curl]${RST}  live weather for: ${W}${CITY}${RST}\n"
+      # Compact single-line format: condition icon, temp C/F, wind, humidity
+      RAW="$(curl -sf "https://wttr.in/${CITY_ENC}?format=j1" 2>/dev/null)" || RAW=""
+      if [ -z "$RAW" ]; then
+        echo -e "${R}[!] Failed to fetch weather data. Check your internet connection.${RST}"
+        exit 1
+      fi
+      # Parse JSON fields with grep/sed (no jq dependency)
+      COND="$(echo "$RAW"  | grep -o '"weatherDesc".*' | head -1 | grep -o '"value":"[^"]*"' | grep -o '[^"]*"$' | tr -d '"')"
+      TEMP_C="$(echo "$RAW" | grep -o '"temp_C":"[^"]*"' | head -1 | grep -o '[0-9\-]*')"
+      TEMP_F="$(echo "$RAW" | grep -o '"temp_F":"[^"]*"' | head -1 | grep -o '[0-9\-]*')"
+      FEELS_C="$(echo "$RAW" | grep -o '"FeelsLikeC":"[^"]*"' | head -1 | grep -o '[0-9\-]*')"
+      HUMIDITY="$(echo "$RAW" | grep -o '"humidity":"[^"]*"' | head -1 | grep -o '[0-9]*')"
+      WIND_KMH="$(echo "$RAW" | grep -o '"windspeedKmph":"[^"]*"' | head -1 | grep -o '[0-9]*')"
+      WIND_DIR="$(echo "$RAW" | grep -o '"winddir16Point":"[^"]*"' | head -1 | grep -o '"value":"[^"]*"' | grep -o '[^"]*"$' | tr -d '"')"
+      SUNRISE="$(echo "$RAW"  | grep -o '"sunrise":"[^"]*"' | head -1 | grep -o '[^"]*"$' | tr -d '"')"
+      SUNSET="$(echo "$RAW"   | grep -o '"sunset":"[^"]*"'  | head -1 | grep -o '[^"]*"$' | tr -d '"')"
+      PRECIP="$(echo "$RAW"   | grep -o '"precipMM":"[^"]*"' | head -1 | grep -o '[0-9.]*')"
+      UV="$(echo "$RAW"       | grep -o '"uvIndex":"[^"]*"' | head -1 | grep -o '[0-9]*')"
+      VISIBILITY="$(echo "$RAW" | grep -o '"visibility":"[^"]*"' | head -1 | grep -o '[0-9]*')"
+
+      echo -e "  ${W}Condition  ${RST}: ${COND}"
+      echo -e "  ${W}Temp       ${RST}: ${G}${TEMP_C}°C${RST} / ${Y}${TEMP_F}°F${RST}   (feels like ${FEELS_C}°C)"
+      echo -e "  ${W}Humidity   ${RST}: ${HUMIDITY}%"
+      echo -e "  ${W}Wind       ${RST}: ${WIND_KMH} km/h ${WIND_DIR}"
+      echo -e "  ${W}Precip     ${RST}: ${PRECIP} mm"
+      echo -e "  ${W}Visibility ${RST}: ${VISIBILITY} km"
+      echo -e "  ${W}UV Index   ${RST}: ${UV}"
+      echo -e "  ${W}Sunrise    ${RST}: ${SUNRISE}   ${W}Sunset${RST}: ${SUNSET}"
+      echo
+      echo -e "  ${D}Full report: sub weather ${CITY} -v${RST}"
+    fi
+    ;;
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # PORTS / SCAN  →  C sub-scan (fastest, non-blocking + banner grab)
@@ -249,8 +318,9 @@ case "$CMD" in
     echo -e "  ${C}sub-asm${RST}       NASM/GAS / nasm   sysinfo             $(_st sub-asm)"
     echo -e "  ${C}sub-sysinfo${RST}   NASM / nasm       sysinfo             $(_st sub-sysinfo)"
     echo -e "  ${C}sub-whoami.txt${RST} M4 macros / m4   whoami (static)     $(_st sub-whoami.txt)"
+    echo -e "  ${C}weather${RST}       Pure Bash + curl  live weather        always available"
     echo
-    echo -e "  New commands:  ${W}gpuinfo${RST}  ${W}geoip${RST}  ${W}rdns${RST}  ${W}ifaces${RST}  ${W}pwcheck${RST}  ${W}caesar${RST}  ${W}b64${RST}  ${W}m4${RST}  ${W}info${RST}"
+    echo -e "  New commands:  ${W}gpuinfo${RST}  ${W}geoip${RST}  ${W}rdns${RST}  ${W}ifaces${RST}  ${W}pwcheck${RST}  ${W}caesar${RST}  ${W}b64${RST}  ${W}m4${RST}  ${W}info${RST}  ${W}weather${RST}"
     echo -e "  Run ${W}sub build${RST} or ${W}make${RST} to compile all backends."
     echo -e "  Run ${W}sub check-tools${RST} to audit toolchain + built binaries."
     echo ;;
