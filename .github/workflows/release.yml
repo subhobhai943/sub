@@ -18,8 +18,43 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install toolchains
-        run: sudo apt-get update -q && sudo apt-get install -y build-essential gcc rustc nasm m4 default-jdk devscripts debhelper dpkg-dev apt-utils gnupg
+      - name: Install base toolchains
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            build-essential gcc rustc nasm m4 \
+            default-jdk \
+            devscripts debhelper dpkg-dev apt-utils gnupg \
+            pciutils curl
+
+      # ── Haxe ────────────────────────────────────────────────────────
+      # GitHub-hosted runners don't have haxe pre-installed.
+      # We use the official HaxeFoundation setup action so sub-haxe
+      # gets compiled and lands in bin/ before dpkg-buildpackage runs.
+      - name: Install Haxe
+        uses: krdlab/setup-haxe@v1
+        with:
+          haxe-version: '4.3.4'
+
+      - name: Install hxcpp (needed to compile Haxe → C++ → binary)
+        run: haxelib install hxcpp --quiet
+
+      # ── CUDA ────────────────────────────────────────────────────────
+      # nvidia-cuda-toolkit gives us nvcc on the runner.
+      # The resulting sub-cuda binary is compiled for x86-64 Linux and
+      # will only work on machines that have an NVIDIA GPU + driver, but
+      # it's still correct to ship it in the package — the dispatcher
+      # gracefully falls back to nvidia-smi / lspci if no GPU is present.
+      - name: Install CUDA toolkit (nvcc)
+        run: |
+          sudo apt-get install -y nvidia-cuda-toolkit || \
+          echo '[WARN] nvidia-cuda-toolkit unavailable on this runner — sub-cuda will be skipped'
+
+      # ── Kotlin (kotlinc) ────────────────────────────────────────────
+      - name: Install Kotlin
+        run: |
+          sudo apt-get install -y kotlin || \
+          (sudo snap install kotlin --classic && echo 'kotlin installed via snap')
 
       - name: Generate GPG key
         id: gpg
@@ -35,8 +70,28 @@ jobs:
           echo "KEY_ID=$KEY_ID" >> $GITHUB_OUTPUT
           gpg --armor --export sarkarsubhadip604@gmail.com > /tmp/sub.gpg.key
 
-      - name: Build native backends
-        run: make build
+      - name: Build all native backends
+        run: |
+          make build
+          echo '── Built binaries:'
+          ls -lh bin/ || true
+
+      - name: Verify Haxe binary built
+        run: |
+          if [ ! -x bin/sub-haxe ]; then
+            echo '[WARN] sub-haxe not built — check Haxe/hxcpp setup'
+          else
+            echo '[OK] sub-haxe present'
+          fi
+
+      - name: Verify CUDA binary built
+        run: |
+          if [ ! -x bin/sub-cuda ]; then
+            echo '[WARN] sub-cuda not built — nvcc may be unavailable on this runner'
+            echo '       The package will still ship; gpuinfo falls back to nvidia-smi/lspci'
+          else
+            echo '[OK] sub-cuda present'
+          fi
 
       - name: Patch dispatcher paths
         run: |
@@ -66,7 +121,6 @@ jobs:
           DEB_BASENAME=$(basename "$DEB_FILE")
           cp "$DEB_FILE" /tmp/
 
-          # Save index.html before switching branches
           cp .github/apt-repo-index.html /tmp/apt-repo-index.html
 
           git fetch origin apt-repo 2>/dev/null && git checkout apt-repo || (git checkout --orphan apt-repo && git rm -rf . 2>/dev/null || true)
