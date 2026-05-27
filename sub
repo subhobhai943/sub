@@ -47,7 +47,6 @@ case "$CMD" in
       [ "$arg" = "-v" ] || [ "$arg" = "--verbose" ] && VERBOSE=true
     done
 
-    # auto-detect city from IP if not provided
     if [ -z "$CITY" ]; then
       CITY="$(curl -sf "https://ipinfo.io/city" 2>/dev/null || echo "")"
       if [ -z "$CITY" ]; then
@@ -65,13 +64,11 @@ case "$CMD" in
       curl -sf "https://wttr.in/${CITY_ENC}?T" || echo -e "${R}[!] Failed to fetch weather.${RST}"
     else
       echo -e "${C}[weather / Bash+curl]${RST}  live weather for: ${W}${CITY}${RST}\n"
-      # Compact single-line format: condition icon, temp C/F, wind, humidity
       RAW="$(curl -sf "https://wttr.in/${CITY_ENC}?format=j1" 2>/dev/null)" || RAW=""
       if [ -z "$RAW" ]; then
         echo -e "${R}[!] Failed to fetch weather data. Check your internet connection.${RST}"
         exit 1
       fi
-      # Parse JSON fields with grep/sed (no jq dependency)
       COND="$(echo "$RAW"  | grep -o '"weatherDesc".*' | head -1 | grep -o '"value":"[^"]*"' | grep -o '[^"]*"$' | tr -d '"')"
       TEMP_C="$(echo "$RAW" | grep -o '"temp_C":"[^"]*"' | head -1 | grep -o '[0-9\-]*')"
       TEMP_F="$(echo "$RAW" | grep -o '"temp_F":"[^"]*"' | head -1 | grep -o '[0-9\-]*')"
@@ -214,16 +211,88 @@ case "$CMD" in
     else py sysinfo; fi ;;
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# GPUINFO       →  CUDA sub-cuda (GPU kernel launch)
+# GPUINFO  →  CUDA sub-cuda (full kernel launch, needs nvcc + GPU)
+#             nvidia-smi  (NVIDIA driver, no nvcc needed)
+#             lspci       (any GPU, PCI bus scan, no driver needed)
+#             sysfs       (/sys/class/drm, last resort)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   gpuinfo|cuda)
     if bin sub-cuda; then
       echo -e "${C}[sub-cuda / CUDA C++]${RST}  GPU info + kernel demo"
       "${BIN}/sub-cuda" gpuinfo
+
+    elif has nvidia-smi; then
+      echo -e "${C}[gpuinfo / nvidia-smi]${RST}  NVIDIA driver detected (no CUDA build needed)\n"
+      # Header line
+      echo -e "  ${Y}NVIDIA GPU(s)${RST}"
+      echo -e "  ${D}────────────────────────────────────────${RST}"
+      # Full query: name, driver, VRAM total/used/free, temp, utilization, clock
+      nvidia-smi --query-gpu=\
+index,name,driver_version,memory.total,memory.used,memory.free,\
+temperature.gpu,utilization.gpu,utilization.memory,\
+clocks.current.graphics,clocks.current.memory,pstate \
+        --format=csv,noheader,nounits 2>/dev/null \
+      | while IFS=, read -r idx name drv mem_tot mem_used mem_free temp util_gpu util_mem clk_g clk_m pstate; do
+          echo -e "  ${W}GPU ${idx}${RST}: ${G}${name}${RST}"
+          echo -e "    Driver         : ${drv}"
+          echo -e "    VRAM           : ${G}${mem_tot} MiB${RST} total   ${Y}${mem_used} MiB${RST} used   ${mem_free} MiB free"
+          echo -e "    Temperature    : ${temp} °C"
+          echo -e "    GPU Util       : ${util_gpu}%   Mem Util: ${util_mem}%"
+          echo -e "    Clocks         : ${clk_g} MHz (graphics)   ${clk_m} MHz (memory)"
+          echo -e "    Power State    : ${pstate}"
+          echo
+        done
+      echo -e "  ${D}Tip: run 'make cuda_build' for full CUDA kernel demo${RST}"
+
+    elif has lspci; then
+      echo -e "${C}[gpuinfo / lspci]${RST}  PCI bus scan (no driver needed)\n"
+      echo -e "  ${Y}GPU device(s) detected:${RST}"
+      echo -e "  ${D}────────────────────────────────────────${RST}"
+      GPU_LINES="$(lspci 2>/dev/null | grep -iE 'vga|3d|display|nvidia|amd|radeon|intel.*graphics' || true)"
+      if [ -z "$GPU_LINES" ]; then
+        echo -e "  ${R}[!] No GPU found via lspci.${RST}"
+      else
+        echo "$GPU_LINES" | while IFS= read -r line; do
+          echo -e "  ${G}→${RST} ${line}"
+        done
+        echo
+        # Try to read driver from sysfs for each PCI id
+        echo -e "  ${D}Driver info (if loaded):${RST}"
+        lspci -k 2>/dev/null | grep -A3 -iE 'vga|3d|display' \
+          | grep -E 'Kernel driver|Kernel modules' \
+          | sed 's/^/    /' || echo "    (no driver info available)"
+      fi
+      echo
+      echo -e "  ${D}Tip: install nvidia-smi or nvcc for richer GPU info${RST}"
+
+    elif [ -d /sys/class/drm ]; then
+      echo -e "${C}[gpuinfo / sysfs]${RST}  DRM subsystem scan\n"
+      echo -e "  ${Y}DRM render nodes:${RST}"
+      echo -e "  ${D}────────────────────────────────────────${RST}"
+      FOUND=false
+      for card in /sys/class/drm/card[0-9]*; do
+        [ -d "$card" ] || continue
+        FOUND=true
+        NAME="$(cat "${card}/device/product_name" 2>/dev/null \
+             || cat "${card}/device/uevent" 2>/dev/null | grep PCI_ID | head -1 \
+             || basename "$card")"
+        VENDOR="$(cat "${card}/device/vendor" 2>/dev/null || echo 'unknown')"
+        DRIVER="$(basename "$(readlink -f "${card}/device/driver" 2>/dev/null)" 2>/dev/null || echo 'none')"
+        echo -e "  ${G}→${RST} $(basename $card)   vendor: ${VENDOR}   driver: ${DRIVER}   (${NAME})"
+      done
+      $FOUND || echo -e "  ${R}[!] No DRM cards found.${RST}"
+      echo
+      echo -e "  ${D}Tip: install lspci (pciutils) for better GPU info${RST}"
+
     else
-      echo -e "${R}[!] gpuinfo needs sub-cuda — run: make cuda_build${RST}"
-      echo -e "${D}    Requires NVIDIA GPU + nvcc (CUDA toolkit)${RST}"
-    fi ;;
+      echo -e "${Y}[gpuinfo / no hardware tools found]${RST}\n"
+      echo -e "  Could not find any of: ${W}sub-cuda${RST}  ${W}nvidia-smi${RST}  ${W}lspci${RST}  ${W}/sys/class/drm${RST}\n"
+      echo -e "  To get GPU info, install one of:"
+      echo -e "    ${G}sudo apt install pciutils${RST}          (adds lspci, works for any GPU)"
+      echo -e "    ${G}sudo apt install nvidia-utils-XXX${RST}  (adds nvidia-smi, NVIDIA only)"
+      echo -e "    ${G}make cuda_build${RST}                    (needs nvcc + NVIDIA GPU)"
+    fi
+    ;;
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # WHOAMI        →  M4 pre-rendered txt  (fastest, zero runtime)
@@ -319,6 +388,7 @@ case "$CMD" in
     echo -e "  ${C}sub-sysinfo${RST}   NASM / nasm       sysinfo             $(_st sub-sysinfo)"
     echo -e "  ${C}sub-whoami.txt${RST} M4 macros / m4   whoami (static)     $(_st sub-whoami.txt)"
     echo -e "  ${C}weather${RST}       Pure Bash + curl  live weather        always available"
+    echo -e "  ${C}gpuinfo${RST}       Bash fallback      nvidia-smi/lspci   always available"
     echo
     echo -e "  New commands:  ${W}gpuinfo${RST}  ${W}geoip${RST}  ${W}rdns${RST}  ${W}ifaces${RST}  ${W}pwcheck${RST}  ${W}caesar${RST}  ${W}b64${RST}  ${W}m4${RST}  ${W}info${RST}  ${W}weather${RST}"
     echo -e "  Run ${W}sub build${RST} or ${W}make${RST} to compile all backends."
