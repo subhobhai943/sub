@@ -1,0 +1,16 @@
+
+  +-+-+-+
+  |S|U|B|
+  +-+-+-+
+  by Subhobhai Sarkar | https://github.com/subhobhai943
+  M4 Macro Edition v1.0.0
+
+  Name       : Subhobhai Sarkar
+  Alias      : sub
+  GitHub     : https://github.com/subhobhai943
+  Portfolio  : https://sub-portofolio.netlify.app
+  Location   : Durgapur, West Bengal, India
+  Bio        : PCMB student | Web, AI, C++/C# game dev | Open-source hacker
+  Projects   : AIOS, SUB lang, Discord bots, 3D web games
+  Languages  : Python, C, C++, Rust, Kotlin, Java, JS, Assembly, M4, CUDA
+

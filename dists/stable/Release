@@ -1,0 +1,24 @@
+Origin: sub
+Label: sub
+Suite: stable
+Codename: stable
+Architectures: all amd64
+Components: main
+Description: sub - Polyglot CLI
+Date: Wed, 27 May 2026 12:21:46 +0000
+MD5Sum:
+ 3d537adb158bfb4661f230acd2a915f1              166 Release
+ 7e18f0a49b26d2ad7a1c9711dc0aa01f             1170 main/binary-amd64/Packages
+ 46b4549d5718341018e2ed1c4fe42d34              779 main/binary-amd64/Packages.gz
+SHA1:
+ 47e9b2a4cf0525aebcb3da12569b7009cb1b92a4              166 Release
+ ac56c3e755c2cd02c0ddc09ad325b23f99c37d8a             1170 main/binary-amd64/Packages
+ f108d0ff8ebce4a0e55a900d8dcb994a304ef765              779 main/binary-amd64/Packages.gz
+SHA256:
+ 7ad5863295beb94d0d270a6c2b0de228dab535eb51a90c71aad58a26600151a4              166 Release
+ bfd9d3ef86088b258a7b6d0011bb97ef2932fbfd91a9a9c6e8484f907aa6d824             1170 main/binary-amd64/Packages
+ 321b354dae7b56a524ff8a3e45b0e891e44a7430f9b88bcc890c4db2bebabbae              779 main/binary-amd64/Packages.gz
+SHA512:
+ 63f8ec9a5e273574f65d645e81e68b612c859b30bb013ca2fa556e42c017a5ebc77d469370ab6fa76ec7acef14fdc6885a049b2e1f970658d2eb774b07e49a0d              166 Release
+ b9eeabccccf50dfd79fe19ab6b7f5f4a9a48dc1cb8eddb10130fd5c8b8539f63eb19bc7c0f560fab2bfdbd131985a5cef46e29b9ca38bd1a031e1d8666d28460             1170 main/binary-amd64/Packages
+ 5ecf8d303d9924e110e92008ae33f60571880c276e3a9dff0ac8eadef83ac30ad85b064c4f723704bd5060c1c74aff3abfbc00c908c20d600218f98565fe6806              779 main/binary-amd64/Packages.gz

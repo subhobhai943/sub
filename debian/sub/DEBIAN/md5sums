@@ -1,0 +1,14 @@
+37891c001579c21d229665fb34b8310b  usr/local/bin/sub
+c3157b4ab2b50f6267b44f60eb331ad1  usr/local/lib/sub/bin/OsintTools.class
+d42f986ce9c31179c28660c832e4faaf  usr/local/lib/sub/bin/Sub.class
+a5ec0ffb04bbe47307d673988f3d8d52  usr/local/lib/sub/bin/sub-asm
+8a4beca74b55033621dcd1e1f0187f2f  usr/local/lib/sub/bin/sub-cuda
+cd52ab5f195d362d13452b98f6e06b7d  usr/local/lib/sub/bin/sub-kt.jar
+0d09c00a73db5bfb7c000a3c85ba8a6f  usr/local/lib/sub/bin/sub-net.jar
+f7b6d787e3ff81fcca1f2d82e83dd16b  usr/local/lib/sub/bin/sub-recon
+62dada53c2973d5f110fa0e6083635b7  usr/local/lib/sub/bin/sub-scan
+f3ead4ad6cbcc7e291757cf06da64a06  usr/local/lib/sub/bin/sub-sysinfo
+1affc2cd3bd65a94ce373db98c395cb8  usr/local/lib/sub/bin/sub-whoami.txt
+77f1116e21d58c193a4648e7d9193025  usr/local/lib/sub/sub.py
+ecb0d404e51b119976ec1075593deedc  usr/share/doc/sub/changelog.Debian.gz
+8f9791471756490ea28daeaed414b22b  usr/share/doc/sub/copyright

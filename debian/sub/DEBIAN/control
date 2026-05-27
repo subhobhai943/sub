@@ -1,0 +1,24 @@
+Package: sub
+Version: 1.0.0-1
+Architecture: all
+Maintainer: Subhadip Sarkar <sarkarsubhadip604@gmail.com>
+Installed-Size: 11331
+Depends: python3 (>= 3.8)
+Recommends: gcc, rustc, default-jdk, nmap, whois, dnsutils, traceroute, nasm, m4
+Suggests: kotlinc, nvcc
+Section: utils
+Priority: optional
+Homepage: https://github.com/subhobhai943/sub
+Description: Polyglot hacking & utility CLI tool
+ sub is a multi-backend command-line toolkit written in Python, C, Rust,
+ Kotlin, Java, Haxe, CUDA C++, Assembly (x86_64/aarch64), and M4.
+ .
+ A single bash dispatcher routes each command to the fastest available
+ native backend, with graceful fallback to Python.
+ .
+ Commands: whoami, sysinfo, info, myip, scan, ports, subdomain,
+ banner-grab, geoip, rdns, ifaces, traceroute, dns, whois, ipinfo,
+ ping, headers, netstat, hashid, pwcheck, caesar, b64, hash, encode,
+ generate, weather, myrepos, gpuinfo, m4, version.
+ .
+ GitHub: https://github.com/subhobhai943/sub

@@ -1,0 +1,11 @@
+sub (1.0.0-1) stable; urgency=low
+
+  * Initial polyglot release.
+  * Backends: Python, C (gcc), Rust, Kotlin, Java, Haxe->C++, CUDA C++,
+    NASM x86_64, GAS aarch64, M4 macros.
+  * Commands: whoami, sysinfo, info, myip, scan, ports, subdomain,
+    banner-grab, geoip, rdns, ifaces, traceroute, dns, whois, ipinfo,
+    ping, headers, netstat, hashid, pwcheck, caesar, b64, hash, encode,
+    generate, weather, myrepos, gpuinfo, m4, version, check-tools.
+
+ -- Subhadip Sarkar <sarkarsubhadip604@gmail.com>  Wed, 27 May 2026 00:09:00 +0530
