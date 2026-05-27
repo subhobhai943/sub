@@ -28,29 +28,21 @@ jobs:
             pciutils curl
 
       # ── Haxe ────────────────────────────────────────────────────────
-      # GitHub-hosted runners don't have haxe pre-installed.
-      # We use the official HaxeFoundation setup action so sub-haxe
-      # gets compiled and lands in bin/ before dpkg-buildpackage runs.
       - name: Install Haxe
         uses: krdlab/setup-haxe@v1
         with:
           haxe-version: '4.3.4'
 
-      - name: Install hxcpp (needed to compile Haxe → C++ → binary)
+      - name: Install hxcpp (Haxe → C++ backend)
         run: haxelib install hxcpp --quiet
 
       # ── CUDA ────────────────────────────────────────────────────────
-      # nvidia-cuda-toolkit gives us nvcc on the runner.
-      # The resulting sub-cuda binary is compiled for x86-64 Linux and
-      # will only work on machines that have an NVIDIA GPU + driver, but
-      # it's still correct to ship it in the package — the dispatcher
-      # gracefully falls back to nvidia-smi / lspci if no GPU is present.
       - name: Install CUDA toolkit (nvcc)
         run: |
           sudo apt-get install -y nvidia-cuda-toolkit || \
           echo '[WARN] nvidia-cuda-toolkit unavailable on this runner — sub-cuda will be skipped'
 
-      # ── Kotlin (kotlinc) ────────────────────────────────────────────
+      # ── Kotlin ──────────────────────────────────────────────────────
       - name: Install Kotlin
         run: |
           sudo apt-get install -y kotlin || \
@@ -78,20 +70,11 @@ jobs:
 
       - name: Verify Haxe binary built
         run: |
-          if [ ! -x bin/sub-haxe ]; then
-            echo '[WARN] sub-haxe not built — check Haxe/hxcpp setup'
-          else
-            echo '[OK] sub-haxe present'
-          fi
+          [ -x bin/sub-haxe ] && echo '[OK] sub-haxe present' || echo '[WARN] sub-haxe not built'
 
       - name: Verify CUDA binary built
         run: |
-          if [ ! -x bin/sub-cuda ]; then
-            echo '[WARN] sub-cuda not built — nvcc may be unavailable on this runner'
-            echo '       The package will still ship; gpuinfo falls back to nvidia-smi/lspci'
-          else
-            echo '[OK] sub-cuda present'
-          fi
+          [ -x bin/sub-cuda ] && echo '[OK] sub-cuda present' || echo '[WARN] sub-cuda not built — gpuinfo will fall back to nvidia-smi/lspci'
 
       - name: Patch dispatcher paths
         run: |
@@ -117,14 +100,30 @@ jobs:
           git config user.email "sarkarsubhadip604@gmail.com"
           git config user.name "Subhadip Sarkar"
 
+          # ── Stash everything we need before touching the working tree ──
           DEB_FILE=$(ls ../sub_*.deb | head -1)
           DEB_BASENAME=$(basename "$DEB_FILE")
           cp "$DEB_FILE" /tmp/
-
           cp .github/apt-repo-index.html /tmp/apt-repo-index.html
+          cp /tmp/sub.gpg.key /tmp/sub.gpg.key   # already there, just be explicit
 
-          git fetch origin apt-repo 2>/dev/null && git checkout apt-repo || (git checkout --orphan apt-repo && git rm -rf . 2>/dev/null || true)
+          # ── Clean state: reset & remove ALL untracked/modified files ──
+          # This is required so git can switch branches without complaints
+          # about untracked files that would be overwritten by checkout.
+          git reset --hard HEAD
+          git clean -fdx
 
+          # ── Switch to apt-repo branch (or create orphan if first run) ──
+          if git fetch origin apt-repo 2>/dev/null; then
+            git checkout apt-repo
+            # Pull latest so we're not behind (avoids non-fast-forward push)
+            git pull --ff-only origin apt-repo 2>/dev/null || true
+          else
+            git checkout --orphan apt-repo
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # ── Rebuild APT repo structure from /tmp ──────────────────────
           mkdir -p dists/stable/main/binary-amd64 pool/main
           cp "/tmp/$DEB_BASENAME" pool/main/
           cp /tmp/sub.gpg.key sub.gpg.key
@@ -135,8 +134,10 @@ jobs:
           printf 'Origin: sub\nLabel: sub\nSuite: stable\nCodename: stable\nArchitectures: all amd64\nComponents: main\nDescription: sub - Polyglot CLI\n' > dists/stable/Release
           apt-ftparchive release dists/stable >> dists/stable/Release
 
-          gpg --batch --yes --passphrase '' --pinentry-mode loopback --clearsign -o dists/stable/InRelease dists/stable/Release
-          gpg --batch --yes --passphrase '' --pinentry-mode loopback -abs -o dists/stable/Release.gpg dists/stable/Release
+          gpg --batch --yes --passphrase '' --pinentry-mode loopback \
+            --clearsign -o dists/stable/InRelease dists/stable/Release
+          gpg --batch --yes --passphrase '' --pinentry-mode loopback \
+            -abs -o dists/stable/Release.gpg dists/stable/Release
 
           cp /tmp/apt-repo-index.html index.html
 
