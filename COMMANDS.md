@@ -30,6 +30,18 @@
 
 ---
 
+## WEATHER
+
+| Command | Usage | Description |
+|---|---|---|
+| `weather` | `sub weather` | Live weather auto-detected from your IP (city, temp, humidity, wind, UV, sunrise/sunset) |
+| `weather` | `sub weather <city>` | Live weather for a specific city |
+| `weather` | `sub weather <city> -v` | Full verbose wttr.in ASCII weather report |
+
+> **Backend:** Pure Bash + `curl` — no build step, no API key, no extra dependencies. Requires only `curl`.
+
+---
+
 ## RECON
 
 | Command | Usage | Description |
@@ -96,4 +108,7 @@ sub genpass -l 24 -n 3 -s
 sub morse "SUB TOOL"
 sub matrix
 sub figlet sub
+sub weather
+sub weather Durgapur
+sub weather Tokyo -v
 ```
