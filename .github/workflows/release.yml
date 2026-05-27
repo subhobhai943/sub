@@ -40,7 +40,7 @@ jobs:
       - name: Install CUDA toolkit (nvcc)
         run: |
           sudo apt-get install -y nvidia-cuda-toolkit || \
-          echo '[WARN] nvidia-cuda-toolkit unavailable on this runner — sub-cuda will be skipped'
+          echo '[WARN] nvidia-cuda-toolkit unavailable — sub-cuda will be skipped'
 
       # ── Kotlin ──────────────────────────────────────────────────────
       - name: Install Kotlin
@@ -57,8 +57,10 @@ jobs:
           printf 'pinentry-mode loopback\nbatch\nno-tty\n' > ~/.gnupg/gpg.conf
           gpgconf --launch gpg-agent 2>/dev/null || true
           sleep 1
-          gpg --batch --passphrase '' --quick-generate-key 'Subhadip Sarkar <sarkarsubhadip604@gmail.com>' rsa4096 default never
-          KEY_ID=$(gpg --list-keys --keyid-format SHORT sarkarsubhadip604@gmail.com | grep '^pub' | awk '{print $2}' | cut -d'/' -f2)
+          gpg --batch --passphrase '' --quick-generate-key \
+            'Subhadip Sarkar <sarkarsubhadip604@gmail.com>' rsa4096 default never
+          KEY_ID=$(gpg --list-keys --keyid-format SHORT sarkarsubhadip604@gmail.com \
+            | grep '^pub' | awk '{print $2}' | cut -d'/' -f2)
           echo "KEY_ID=$KEY_ID" >> $GITHUB_OUTPUT
           gpg --armor --export sarkarsubhadip604@gmail.com > /tmp/sub.gpg.key
 
@@ -70,11 +72,11 @@ jobs:
 
       - name: Verify Haxe binary built
         run: |
-          [ -x bin/sub-haxe ] && echo '[OK] sub-haxe present' || echo '[WARN] sub-haxe not built'
+          [ -x bin/sub-haxe ] && echo '[OK] sub-haxe' || echo '[WARN] sub-haxe not built'
 
       - name: Verify CUDA binary built
         run: |
-          [ -x bin/sub-cuda ] && echo '[OK] sub-cuda present' || echo '[WARN] sub-cuda not built — gpuinfo will fall back to nvidia-smi/lspci'
+          [ -x bin/sub-cuda ] && echo '[OK] sub-cuda' || echo '[WARN] sub-cuda not built — gpuinfo falls back to nvidia-smi/lspci'
 
       - name: Patch dispatcher paths
         run: |
@@ -85,51 +87,69 @@ jobs:
         run: |
           chmod +x sub debian/rules
           dpkg-buildpackage -us -uc -b
-          ls -lh ../sub_*.deb
+          # Show what was produced (always in the parent of GITHUB_WORKSPACE)
+          ls -lh "$GITHUB_WORKSPACE"/../sub_*.deb
 
       - name: Upload .deb to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: ../sub_*.deb
+          files: "${{ github.workspace }}/../sub_*.deb"
 
       - name: Publish APT repo
         env:
           KEY_ID: ${{ steps.gpg.outputs.KEY_ID }}
         run: |
+          set -euo pipefail
           git config user.email "sarkarsubhadip604@gmail.com"
           git config user.name "Subhadip Sarkar"
 
-          # ── 1. Copy everything needed to /tmp BEFORE touching the working tree ──
-          DEB_FILE=$(ls ../sub_*.deb | head -1)
+          # ── Locate the .deb (always one dir above GITHUB_WORKSPACE) ──
+          DEB_FILE=$(ls "$GITHUB_WORKSPACE"/../sub_*.deb | head -1)
           DEB_BASENAME=$(basename "$DEB_FILE")
-          cp "$DEB_FILE" /tmp/
-          cp .github/apt-repo-index.html /tmp/apt-repo-index.html
-          # sub.gpg.key is already in /tmp from the Generate GPG key step
 
-          # ── 2. Hard-clean the working tree so checkout never blocks ──
-          git reset --hard HEAD
-          git clean -fdx
+          # ── Use git worktree so we NEVER switch the main working tree ──
+          # This completely avoids "untracked files would be overwritten".
+          # We build the APT repo in /tmp/apt-repo-wt, which is a separate
+          # checkout of the apt-repo branch inside the same .git database.
+          WORKTREE="/tmp/apt-repo-wt"
 
-          # ── 3. Switch to apt-repo (create orphan on first run) ──────
+          # Remove any leftover worktree from a previous failed run
+          git worktree remove --force "$WORKTREE" 2>/dev/null || true
+          rm -rf "$WORKTREE"
+
           if git ls-remote --exit-code origin apt-repo &>/dev/null; then
-            # Branch exists remotely — check it out tracking the remote
-            git checkout -B apt-repo origin/apt-repo
+            # Branch already exists — add worktree pointing at it
+            git fetch origin apt-repo
+            git worktree add "$WORKTREE" apt-repo
           else
-            # First run — create a fully empty orphan branch
-            git checkout --orphan apt-repo
+            # First run or branch was deleted — create a new empty orphan
+            # worktree add doesn’t support orphan directly, so we:
+            # 1. create the worktree with a temp branch
+            # 2. delete all files and make an empty commit to start fresh
+            git worktree add --orphan -b apt-repo "$WORKTREE"
+            # The orphan worktree has no commits yet; remove any staged files
+            cd "$WORKTREE"
             git rm -rf . 2>/dev/null || true
+            cd "$GITHUB_WORKSPACE"
           fi
 
-          # ── 4. Rebuild APT repo structure ───────────────────────────
+          # ── Build the APT repo structure inside the worktree ─────────
+          cd "$WORKTREE"
+
           mkdir -p dists/stable/main/binary-amd64 pool/main
-          cp "/tmp/$DEB_BASENAME" pool/main/
+          cp "$DEB_FILE" pool/main/
           cp /tmp/sub.gpg.key sub.gpg.key
 
-          dpkg-scanpackages pool/main /dev/null > dists/stable/main/binary-amd64/Packages
+          dpkg-scanpackages pool/main /dev/null \
+            > dists/stable/main/binary-amd64/Packages
           gzip -kf dists/stable/main/binary-amd64/Packages
 
-          printf 'Origin: sub\nLabel: sub\nSuite: stable\nCodename: stable\nArchitectures: all amd64\nComponents: main\nDescription: sub - Polyglot CLI\n' > dists/stable/Release
+          printf '%s\n' \
+            'Origin: sub' 'Label: sub' 'Suite: stable' 'Codename: stable' \
+            'Architectures: all amd64' 'Components: main' \
+            'Description: sub - Polyglot CLI' \
+            > dists/stable/Release
           apt-ftparchive release dists/stable >> dists/stable/Release
 
           gpg --batch --yes --passphrase '' --pinentry-mode loopback \
@@ -137,13 +157,18 @@ jobs:
           gpg --batch --yes --passphrase '' --pinentry-mode loopback \
             -abs -o dists/stable/Release.gpg dists/stable/Release
 
-          cp /tmp/apt-repo-index.html index.html
+          cp "$GITHUB_WORKSPACE/.github/apt-repo-index.html" index.html
 
-          # ── 5. Commit + push ──────────────────────────────────────
+          # ── Commit and push ────────────────────────────────────
           git add .
           git commit -m "APT repo: ${{ github.ref_name || 'manual' }}"
-          # force-with-lease: safe force push — only overwrites if remote
-          # hasn't changed since we fetched it (step 3 above). This is the
-          # correct strategy for a CI-managed branch that only this workflow
-          # ever writes to.
+
+          # On first push (no upstream), plain push creates the remote branch.
+          # On subsequent pushes, force-with-lease is safe since only this
+          # workflow ever writes to apt-repo.
+          git push origin apt-repo 2>/dev/null || \
           git push --force-with-lease origin apt-repo
+
+          # ── Clean up worktree ───────────────────────────────────
+          cd "$GITHUB_WORKSPACE"
+          git worktree remove --force "$WORKTREE"
