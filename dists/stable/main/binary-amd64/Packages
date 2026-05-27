@@ -7,10 +7,10 @@ Depends: python3 (>= 3.8)
 Recommends: gcc, rustc, default-jdk, nmap, whois, dnsutils, traceroute, nasm, m4
 Suggests: kotlinc, nvcc
 Filename: pool/main/sub_1.0.0-1_all.deb
-Size: 1584932
-MD5sum: b254fc784f680203f92b7ca77222149b
-SHA1: 239cd3c8d40f0ff346fe2c14787c86a4377dd7e8
-SHA256: f85712f7c8cdd98739fd4e67a3f75c5a001a9f1b710a416b14bf167ce06a404f
+Size: 1584920
+MD5sum: c032a8f9c52f850ee34c5116cad72cab
+SHA1: 15ac109b9dab1b7ca2460e662f001ed326428d7f
+SHA256: c22e38268fb6e4988a82ea3bd2e842fdb3c63fc3ebaa939ae98f674fdcdb55b9
 Section: utils
 Priority: optional
 Homepage: https://github.com/subhobhai943/sub
